@@ -84,7 +84,7 @@
   </div>
 
   <script>
-    const socket = new WebSocket('wss://groupchat-mfp1.onrender.com');
+   const socket = new WebSocket('wss://groupchat-mfp1.onrender.com');
     let clientId = null;
     let myName = '';
 
@@ -98,11 +98,26 @@
       }
 
       // Handle HTML preview
+      // Handle HTML preview only if it's an HTML message
       if (data.type === 'html') {
         const htmlPreview = document.getElementById('htmlPreview');
-        htmlPreview.innerHTML = data.html;
-        return;
+
+        const htmlContainer = document.createElement('div');
+        htmlContainer.style.borderTop = "1px solid #ccc";
+        htmlContainer.style.marginTop = "10px";
+        htmlContainer.style.paddingTop = "10px";
+
+        htmlContainer.innerHTML = `
+          <span style="font-style:italic; font-size: small;">
+            ${data.name || 'User ' + data.from}:
+          </span><br>
+          ${data.html}
+        `;
+
+        htmlPreview.appendChild(htmlContainer);
+        return; // don't fall through to chat rendering
       }
+
 
       // Handle chat/image/video
       const messages = document.getElementById('messages');
