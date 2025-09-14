@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Simple Chat</title>
+  <style>
+    #messages {
+      height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+      display: flex;
+      flex-direction: column-reverse;
+      font-family: sans-serif;
+    }
+
+    .message {
+      padding: 8px 12px;
+      margin: 4px 0;
+      border-radius: 12px;
+      max-width: 60%;
+    }
+
+    .me {
+      background-color: #dcf8c6;
+      align-self: flex-end;
+      text-align: right;
+    }
+
+    .other {
+      background-color: #eee;
+      align-self: flex-start;
+      text-align: left;
+    }
+
+    #chatInterface {
+      display: none;
+    }
+
+    #namePrompt {
+      text-align: center;
+      padding: 30px;
+    }
+
+    input[type="text"], input[type="file"] {
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ✅ Name input screen -->
+  <div id="namePrompt">
+    <h2>Enter your name to join the chat</h2>
+    <input type="text" id="inputName" placeholder="Type your name">
+    <button onclick="submitName()">Join Chat</button>
+  </div>
+
+  <!-- ✅ Chat interface (hidden initially) -->
+  <div id="chatInterface">
+    <div id="messages"></div>
+    <input type="text" id="input" placeholder="Type a message...">
+    <button onclick="sendMessage()">Send</button>
+    <input type="file" id="imageInput" accept="image/*">
+    <button onclick="sendImage()">Send Image</button>
+  </div>
+
+<script>
+  const socket = new WebSocket('wss://cde5539701cb.ngrok-free.app');
+
+  let clientId = null;
+  let myName = '';
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    const messages = document.getElementById('messages');
+    const msg = document.createElement('div');
+    msg.classList.add('message');
+
+    if (data.type === 'assign-id') {
+      clientId = data.id;
+      return;
+    }
+
+    if (data.from === clientId) {
+      msg.classList.add('me');
+    } else {
+      msg.classList.add('other');
+    }
+
+    let senderName;
+
+    if (data.from === clientId) {
+      senderName = 'You';
+    } else if (data.name) {
+      senderName = data.name;
+    } else {
+      senderName = 'User ' + data.from;
+    }
+
+    if (data.image) {
+      const img = document.createElement('img');
+      img.src = data.image;
+      img.style.maxWidth = '200px';
+      img.style.borderRadius = '8px';
+      msg.appendChild(img);
+
+      const label = document.createElement('div');
+      label.textContent = `${senderName}:`;
+      msg.prepend(label);
+    }
+
+    if (data.text) {
+      msg.textContent = `${senderName}: ${data.text}`;
+    }
+
+    messages.prepend(msg);
+    messages.scrollTop = messages.scrollHeight;
+  };
+
+  function submitName() {
+    const nameInput = document.getElementById('inputName');
+    const inputname = nameInput.value.trim();
+
+    if (!inputname) {
+      alert("Please enter a valid name.");
+      return;
+    }
+
+    myName = inputname;
+
+    // Send name to server
+    socket.send(JSON.stringify({
+      type: 'set-name',
+      name: myName
+    }));
+
+    // Hide name prompt, show chat
+    document.getElementById('namePrompt').style.display = 'none';
+    document.getElementById('chatInterface').style.display = 'block';
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('input');
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    socket.send(JSON.stringify({
+      type: 'text',
+      text,
+      name: myName
+    }));
+
+    input.value = '';
+  }
+
+  function sendImage() {
+    const input = document.getElementById('imageInput');
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function () {
+      const base64Image = reader.result;
+      socket.send(JSON.stringify({
+        type: 'image',
+        image: base64Image,
+        name: myName
+      }));
+    };
+
+    reader.readAsDataURL(file);
+  }
+</script>
+
+
+</body>
+</html>
