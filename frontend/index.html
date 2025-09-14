@@ -46,6 +46,12 @@
     input[type="file"] {
       margin: 5px;
     }
+
+    span {
+      font-style: italic;
+      opacity: 0.8;
+      font-size: smaller;
+    }
   </style>
 </head>
 <body>
@@ -56,7 +62,7 @@
     <button onclick="submitName()">Join Chat</button>
   </div>
 
-  <!-- ✅ Chat interface (hidden initially) -->
+  <!-- ✅ Chat interface -->
   <div id="chatInterface">
     <div id="messages"></div>
     <input type="text" id="input" placeholder="Type a message..." />
@@ -67,23 +73,41 @@
     <button onclick="sendVideo()">Send Video</button>
   </div>
 
+  <!-- ✅ HTML Preview & Input Section -->
+  <div id="htmlCodeSection" style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px;">
+    <h4>Live Preview (shared with everyone):</h4>
+    <div id="htmlPreview" style="border:1px solid #ccc; min-height: 150px; padding: 10px; background: #fafafa;"></div>
+
+    <h3>Live HTML Code Input</h3>
+    <textarea id="htmlInput" rows="6" style="width: 100%; font-family: monospace;" placeholder="Type HTML code here..."></textarea>
+    <button onclick="sendHTML()">Send HTML</button>
+  </div>
+
   <script>
     const socket = new WebSocket('wss://groupchat-mfp1.onrender.com');
-
-
     let clientId = null;
     let myName = '';
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      const messages = document.getElementById('messages');
-      const msg = document.createElement('div');
-      msg.classList.add('message');
 
+      // Handle client ID assignment
       if (data.type === 'assign-id') {
         clientId = data.id;
         return;
       }
+
+      // Handle HTML preview
+      if (data.type === 'html') {
+        const htmlPreview = document.getElementById('htmlPreview');
+        htmlPreview.innerHTML = data.html;
+        return;
+      }
+
+      // Handle chat/image/video
+      const messages = document.getElementById('messages');
+      const msg = document.createElement('div');
+      msg.classList.add('message');
 
       if (data.from === clientId) {
         msg.classList.add('me');
@@ -91,19 +115,9 @@
         msg.classList.add('other');
       }
 
-      let senderName;
-
-      if (data.from === clientId) {
-        senderName = 'You';
-      } else if (data.name) {
-        senderName = data.name;
-      } else {
-        senderName = 'User ' + data.from;
-      }
-
-      // Create and append label before any media or text
+      const senderName = data.from === clientId ? 'You' : (data.name || `User ${data.from}`);
       const label = document.createElement('div');
-      label.innerHTML = `${senderName}:<br><br>`;
+      label.innerHTML = `<span>${senderName}</span>:<br><br>`;
       msg.appendChild(label);
 
       if (data.image) {
@@ -144,15 +158,11 @@
 
       myName = inputname;
 
-      // Send name to server
-      socket.send(
-        JSON.stringify({
-          type: 'set-name',
-          name: myName
-        })
-      );
+      socket.send(JSON.stringify({
+        type: 'set-name',
+        name: myName
+      }));
 
-      // Hide name prompt, show chat
       document.getElementById('namePrompt').style.display = 'none';
       document.getElementById('chatInterface').style.display = 'block';
     }
@@ -160,16 +170,13 @@
     function sendMessage() {
       const input = document.getElementById('input');
       const text = input.value.trim();
-
       if (!text) return;
 
-      socket.send(
-        JSON.stringify({
-          type: 'text',
-          text,
-          name: myName
-        })
-      );
+      socket.send(JSON.stringify({
+        type: 'text',
+        text,
+        name: myName
+      }));
 
       input.value = '';
     }
@@ -180,19 +187,16 @@
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = function () {
-        const base64Image = reader.result;
-        socket.send(
-          JSON.stringify({
-            type: 'image',
-            image: base64Image,
-            name: myName
-          })
-        );
+      reader.onload = () => {
+        socket.send(JSON.stringify({
+          type: 'image',
+          image: reader.result,
+          name: myName
+        }));
       };
 
       reader.readAsDataURL(file);
-      input.value = ''; // Clear file input after sending
+      input.value = '';
     }
 
     function sendVideo() {
@@ -201,22 +205,33 @@
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = function () {
-        const base64Video = reader.result;
-        socket.send(
-          JSON.stringify({
-            type: 'video',
-            video: base64Video,
-            name: myName
-          })
-        );
+      reader.onload = () => {
+        socket.send(JSON.stringify({
+          type: 'video',
+          video: reader.result,
+          name: myName
+        }));
       };
 
       reader.readAsDataURL(file);
-      input.value = ''; // Clear file input after sending
+      input.value = '';
     }
 
-    // Optional: Send message on Enter key press
+    function sendHTML() {
+      const htmlInput = document.getElementById('htmlInput');
+      const htmlCode = htmlInput.value.trim();
+      if (!htmlCode) return;
+
+      socket.send(JSON.stringify({
+        type: 'html',
+        html: htmlCode,
+        name: myName
+      }));
+
+      htmlInput.value = '';
+    }
+
+    // Optional: Press Enter to send message
     document.getElementById('input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') sendMessage();
     });
