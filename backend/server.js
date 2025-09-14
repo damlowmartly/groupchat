@@ -4,11 +4,9 @@ const WebSocket = require('ws');
 const path = require('path');
 
 const app = express();
-
-// Use dynamic port for deployment platforms like Railway
 const port = process.env.PORT || 3000;
 
-// Serve the frontend (make sure the path is correct relative to this file)
+// Serve your frontend
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 const server = http.createServer(app);
@@ -62,6 +60,12 @@ wss.on('connection', (socket) => {
       payload.image = data.image;
     }
 
+    // Add support for video
+    if (data.video) {
+      payload.video = data.video;
+    }
+
+    // Broadcast to all clients
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(JSON.stringify(payload));
