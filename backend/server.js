@@ -64,6 +64,9 @@ wss.on('connection', (socket) => {
     if (data.video) {
       payload.video = data.video;
     }
+    if (data.html) {
+      payload.html = data.html;
+    }
 
     // Broadcast to all clients
     wss.clients.forEach((client) => {
