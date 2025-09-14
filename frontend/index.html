@@ -56,36 +56,34 @@
     #imageModal {
       display: none;
       position: fixed;
-      top: 0; left: 0;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.8);
+      background: rgba(0, 0, 0, 0.8);
       justify-content: center;
       align-items: center;
       z-index: 9999;
       cursor: zoom-out;
       transition: all 0.3s ease;
     }
-    
+
     #imageModal img {
       max-width: 90%;
       max-height: 90%;
       border-radius: 10px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
       transition: transform 0.3s ease;
     }
-
   </style>
 </head>
 <body>
-  
   <div id="namePrompt">
     <h2>Enter your name to join the chat</h2>
     <input type="text" id="inputName" placeholder="Type your name" />
     <button onclick="submitName()">Join Chat</button>
   </div>
 
-  
   <div id="chatInterface">
     <div id="messages"></div>
     <input type="text" id="input" placeholder="Type a message..." />
@@ -96,228 +94,158 @@
     <button onclick="sendVideo()">Send Video</button>
   </div>
 
- 
   <div id="htmlCodeSection" style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px;">
     <h4>Live Preview (shared with everyone):</h4>
-    <div id="htmlPreview" style="
-      border: 1px solid #ccc;
-      min-height: 150px;
-      max-height: 500px;
-      overflow-y: auto;
-      padding: 10px;
-      background: #fafafa;
-      font-family: monospace;
-    "></div>
-
+    <div id="htmlPreview" style="border: 1px solid #ccc; min-height: 150px; max-height: 500px; overflow-y: auto; padding: 10px; background: #fafafa; font-family: monospace;"></div>
     <h3>Live HTML Code Input</h3>
     <textarea id="htmlInput" rows="6" style="width: 100%; font-family: monospace;" placeholder="Type HTML code here..."></textarea>
     <button onclick="sendHTML()">Send HTML</button>
   </div>
 
+  <div id="imageModal">
+    <img id="modalImage" src="" />
+  </div>
+
   <script>
-   const socket = new WebSocket('wss://groupchat-mfp1.onrender.com');
-    let clientId = null;
-    let myName = '';
+    window.onload = function () {
+      const socket = new WebSocket('wss://groupchat-mfp1.onrender.com');
+      let clientId = null;
+      let myName = '';
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      const imageModal = document.getElementById('imageModal');
+      const modalImage = document.getElementById('modalImage');
 
-    
-      if (data.type === 'assign-id') {
-        clientId = data.id;
-        return;
-      }
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
 
-    
-      if (data.type === 'html') {
-        const htmlPreview = document.getElementById('htmlPreview');
+        if (data.type === 'assign-id') {
+          clientId = data.id;
+          return;
+        }
 
-        const htmlContainer = document.createElement('div');
-        htmlContainer.style.borderTop = "1px solid #ccc";
-        htmlContainer.style.marginTop = "10px";
-        htmlContainer.style.paddingTop = "10px";
+        if (data.type === 'html') {
+          const htmlPreview = document.getElementById('htmlPreview');
+          const htmlContainer = document.createElement('div');
+          htmlContainer.style.borderTop = "1px solid #ccc";
+          htmlContainer.style.marginTop = "10px";
+          htmlContainer.style.paddingTop = "10px";
+          htmlContainer.innerHTML = `<span style="font-style:italic; font-size: small;">${data.name || 'User ' + data.from}:</span><br>${data.html}`;
+          htmlPreview.appendChild(htmlContainer);
+          return;
+        }
 
-        htmlContainer.innerHTML = `
-          <span style="font-style:italic; font-size: small;">
-            ${data.name || 'User ' + data.from}:
-          </span><br>
-          ${data.html}
-        `;
+        const messages = document.getElementById('messages');
+        const msg = document.createElement('div');
+        msg.classList.add('message');
+        msg.classList.add(data.from === clientId ? 'me' : 'other');
 
-        htmlPreview.appendChild(htmlContainer);
-        return;
-      }
+        const senderName = data.from === clientId ? 'You' : (data.name || `User ${data.from}`);
+        const label = document.createElement('div');
+        label.innerHTML = `<span>${senderName}</span>:<br><br>`;
+        msg.appendChild(label);
 
+        if (data.image) {
+          const img = document.createElement('img');
+          img.src = data.image;
+          img.style.maxWidth = '200px';
+          img.style.borderRadius = '8px';
+          img.style.cursor = 'zoom-in';
 
-      
-      const messages = document.getElementById('messages');
-      const msg = document.createElement('div');
-      msg.classList.add('message');
+          img.addEventListener('click', () => {
+            modalImage.src = data.image;
+            imageModal.style.display = 'flex';
+          });
 
-      if (data.from === clientId) {
-        msg.classList.add('me');
-      } else {
-        msg.classList.add('other');
-      }
+          msg.appendChild(img);
+        }
 
-      const senderName = data.from === clientId ? 'You' : (data.name || `User ${data.from}`);
-      const label = document.createElement('div');
-      label.innerHTML = `<span>${senderName}</span>:<br><br>`;
-      msg.appendChild(label);
+        if (data.video) {
+          const video = document.createElement('video');
+          video.src = data.video;
+          video.controls = true;
+          video.style.maxWidth = '200px';
+          video.style.borderRadius = '8px';
+          msg.appendChild(video);
+        }
 
-    if (data.image) {
-      const img = document.createElement('img');
-      img.src = data.image;
-      img.style.maxWidth = '200px';
-      img.style.borderRadius = '8px';
-      img.style.cursor = 'zoom-in';
-    
-      img.addEventListener('click', () => {
-        const modal = document.getElementById('imageModal');
-        const modalImg = document.getElementById('modalImage');
-        modalImg.src = data.image;
-        modal.style.display = 'flex';
-      });
-    
-      msg.appendChild(img);
-      }
+        if (data.text) {
+          const textDiv = document.createElement('div');
+          textDiv.textContent = data.text;
+          msg.appendChild(textDiv);
+        }
 
-      if (data.video) {
-        const video = document.createElement('video');
-        video.src = data.video;
-        video.controls = true;
-        video.style.maxWidth = '200px';
-        video.style.borderRadius = '8px';
-        msg.appendChild(video);
-      }
-
-      if (data.text) {
-        const textDiv = document.createElement('div');
-        textDiv.textContent = data.text;
-        msg.appendChild(textDiv);
-      }
-
-      messages.prepend(msg);
-      messages.scrollTop = messages.scrollHeight;
-    };
-
-    function submitName() {
-      const nameInput = document.getElementById('inputName');
-      const inputname = nameInput.value.trim();
-
-      if (!inputname) {
-        alert('Please enter a valid name.');
-        return;
-      }
-
-      myName = inputname;
-
-      socket.send(JSON.stringify({
-        type: 'set-name',
-        name: myName
-      }));
-
-      document.getElementById('namePrompt').style.display = 'none';
-      document.getElementById('chatInterface').style.display = 'block';
-    }
-
-    function sendMessage() {
-      const input = document.getElementById('input');
-      const text = input.value.trim();
-      if (!text) return;
-
-      socket.send(JSON.stringify({
-        type: 'text',
-        text,
-        name: myName
-      }));
-
-      input.value = '';
-    }
-
-    function sendImage() {
-      const input = document.getElementById('imageInput');
-      const file = input.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        socket.send(JSON.stringify({
-          type: 'image',
-          image: reader.result,
-          name: myName
-        }));
+        messages.prepend(msg);
+        messages.scrollTop = messages.scrollHeight;
       };
 
-      reader.readAsDataURL(file);
-      input.value = '';
-    }
-    const imageModal = document.getElementById('imageModal');
-    const modalImage = document.getElementById('modalImage');
-    
-    // Close modal on click outside the image
-    imageModal.addEventListener('click', () => {
-      imageModal.style.display = 'none';
-    });
-    
-    // Prevent closing when clicking the image
-    modalImage.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
-    
-    // Close modal on ESC key
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
+      imageModal.addEventListener('click', () => {
         imageModal.style.display = 'none';
-      }
-    });
+      });
 
-    });
+      modalImage.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
 
-    function sendVideo() {
-      const input = document.getElementById('videoInput');
-      const file = input.files[0];
-      if (!file) return;
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          imageModal.style.display = 'none';
+        }
+      });
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        socket.send(JSON.stringify({
-          type: 'video',
-          video: reader.result,
-          name: myName
-        }));
+      document.getElementById('input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendMessage();
+      });
+
+      window.submitName = function () {
+        const nameInput = document.getElementById('inputName');
+        const inputname = nameInput.value.trim();
+        if (!inputname) return alert('Please enter a valid name.');
+        myName = inputname;
+        socket.send(JSON.stringify({ type: 'set-name', name: myName }));
+        document.getElementById('namePrompt').style.display = 'none';
+        document.getElementById('chatInterface').style.display = 'block';
       };
 
-      reader.readAsDataURL(file);
-      input.value = '';
-    }
+      window.sendMessage = function () {
+        const input = document.getElementById('input');
+        const text = input.value.trim();
+        if (!text) return;
+        socket.send(JSON.stringify({ type: 'text', text, name: myName }));
+        input.value = '';
+      };
 
-    function sendHTML() {
-      const htmlInput = document.getElementById('htmlInput');
-      const htmlCode = htmlInput.value.trim();
-      if (!htmlCode) return;
+      window.sendImage = function () {
+        const input = document.getElementById('imageInput');
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          socket.send(JSON.stringify({ type: 'image', image: reader.result, name: myName }));
+        };
+        reader.readAsDataURL(file);
+        input.value = '';
+      };
 
-      socket.send(JSON.stringify({
-        type: 'html',
-        html: htmlCode,
-        name: myName
-      }));
+      window.sendVideo = function () {
+        const input = document.getElementById('videoInput');
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          socket.send(JSON.stringify({ type: 'video', video: reader.result, name: myName }));
+        };
+        reader.readAsDataURL(file);
+        input.value = '';
+      };
 
-      htmlInput.value = '';
-    }
-
-  
-    document.getElementById('input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendMessage();
-    });
+      window.sendHTML = function () {
+        const htmlInput = document.getElementById('htmlInput');
+        const htmlCode = htmlInput.value.trim();
+        if (!htmlCode) return;
+        socket.send(JSON.stringify({ type: 'html', html: htmlCode, name: myName }));
+        htmlInput.value = '';
+      };
+    };
   </script>
-  <!-- Image Viewer Modal -->
-<div id="imageModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:9999;">
-  <img id="modalImage" src="" style="max-width:90%; max-height:90%; border-radius:10px; box-shadow: 0 0 20px rgba(0,0,0,0.5);" />
-</div>
-
 </body>
 </html>
-
-
-
