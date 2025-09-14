@@ -55,14 +55,14 @@
   </style>
 </head>
 <body>
-  <!-- ✅ Name input screen -->
+  
   <div id="namePrompt">
     <h2>Enter your name to join the chat</h2>
     <input type="text" id="inputName" placeholder="Type your name" />
     <button onclick="submitName()">Join Chat</button>
   </div>
 
-  <!-- ✅ Chat interface -->
+  
   <div id="chatInterface">
     <div id="messages"></div>
     <input type="text" id="input" placeholder="Type a message..." />
@@ -73,7 +73,7 @@
     <button onclick="sendVideo()">Send Video</button>
   </div>
 
-  <!-- ✅ HTML Preview & Input Section -->
+ 
   <div id="htmlCodeSection" style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px;">
     <h4>Live Preview (shared with everyone):</h4>
     <div id="htmlPreview" style="
@@ -99,14 +99,13 @@
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
-      // Handle client ID assignment
+    
       if (data.type === 'assign-id') {
         clientId = data.id;
         return;
       }
 
-      // Handle HTML preview
-      // Handle HTML preview only if it's an HTML message
+    
       if (data.type === 'html') {
         const htmlPreview = document.getElementById('htmlPreview');
 
@@ -123,11 +122,11 @@
         `;
 
         htmlPreview.appendChild(htmlContainer);
-        return; // don't fall through to chat rendering
+        return;
       }
 
 
-      // Handle chat/image/video
+      
       const messages = document.getElementById('messages');
       const msg = document.createElement('div');
       msg.classList.add('message');
@@ -254,11 +253,12 @@
       htmlInput.value = '';
     }
 
-    // Optional: Press Enter to send message
+  
     document.getElementById('input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') sendMessage();
     });
   </script>
 </body>
 </html>
+
 
