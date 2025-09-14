@@ -252,8 +252,26 @@
       reader.readAsDataURL(file);
       input.value = '';
     }
-    document.getElementById('imageModal').addEventListener('click', () => {
-    document.getElementById('imageModal').style.display = 'none';
+    const imageModal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    
+    // Close modal on click outside the image
+    imageModal.addEventListener('click', () => {
+      imageModal.style.display = 'none';
+    });
+    
+    // Prevent closing when clicking the image
+    modalImage.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+    
+    // Close modal on ESC key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        imageModal.style.display = 'none';
+      }
+    });
+
     });
 
     function sendVideo() {
@@ -300,5 +318,6 @@
 
 </body>
 </html>
+
 
 
