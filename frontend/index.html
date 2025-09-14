@@ -76,7 +76,15 @@
   <!-- ✅ HTML Preview & Input Section -->
   <div id="htmlCodeSection" style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px;">
     <h4>Live Preview (shared with everyone):</h4>
-    <div id="htmlPreview" style="border:1px solid #ccc; min-height: 150px; padding: 10px; background: #fafafa;"></div>
+    <div id="htmlPreview" style="
+      border: 1px solid #ccc;
+      min-height: 150px;
+      max-height: 500px;
+      overflow-y: auto;
+      padding: 10px;
+      background: #fafafa;
+      font-family: monospace;
+    "></div>
 
     <h3>Live HTML Code Input</h3>
     <textarea id="htmlInput" rows="6" style="width: 100%; font-family: monospace;" placeholder="Type HTML code here..."></textarea>
@@ -253,3 +261,4 @@
   </script>
 </body>
 </html>
+
