@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Serve your frontend
+
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 const server = http.createServer(app);
@@ -20,7 +20,7 @@ wss.on('connection', (socket) => {
 
   console.log(`Client ${socket.clientId} connected`);
 
-  // Send the client their ID
+ 
   socket.send(JSON.stringify({
     type: 'assign-id',
     id: socket.clientId
@@ -60,7 +60,7 @@ wss.on('connection', (socket) => {
       payload.image = data.image;
     }
 
-    // Add support for video
+   
     if (data.video) {
       payload.video = data.video;
     }
@@ -68,7 +68,7 @@ wss.on('connection', (socket) => {
       payload.html = data.html;
     }
 
-    // Broadcast to all clients
+  
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(JSON.stringify(payload));
@@ -79,7 +79,7 @@ wss.on('connection', (socket) => {
   socket.on('close', () => {
     console.log(`Client ${socket.clientId} disconnected`);
 
-    // Optional: notify other clients about disconnect
+ 
     const payload = {
       type: 'user-disconnected',
       from: socket.clientId,
@@ -97,3 +97,4 @@ wss.on('connection', (socket) => {
 server.listen(port, () => {
   console.log(`🚀 Server listening on http://localhost:${port}`);
 });
+
