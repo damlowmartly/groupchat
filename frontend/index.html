@@ -194,7 +194,7 @@
       overflow-y: auto;
       padding: 20px;
       display: flex;
-      flex-direction: column-reverse;
+      flex-direction: column;
     }
 
     #messages::-webkit-scrollbar {
@@ -544,15 +544,7 @@
       }
 
       // Save message locally
-      function saveMessageLocally(data) {
-        if (!document.getElementById('saveLocal').checked) return;
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        const messages = saved ? JSON.parse(saved) : [];
-        messages.push(data);
-        // Keep only last 100 messages
-        if (messages.length > 100) messages.shift();
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(messages));
-      }
+      
 
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -671,7 +663,7 @@
         document.getElementById('namePrompt').style.display = 'none';
         document.getElementById('chatInterface').style.display = 'flex';
         document.getElementById('userDisplay').textContent = `[${myName}]`;
-        loadLocalMessages();
+       
       };
 
       window.sendMessage = function () {
@@ -740,22 +732,9 @@
         }
       };
 
-      window.exportMessages = function () {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (!saved) {
-          alert('⚠️ No messages to export');
-          return;
-        }
-        const blob = new Blob([saved], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `cipherchain_log_${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-      };
-    };
+      
   </script>
 </body>
 </html>
+
 
