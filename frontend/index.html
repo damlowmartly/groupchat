@@ -402,6 +402,172 @@
     .icon-btn:hover {
       background: rgba(0, 255, 65, 0.1);
     }
+
+    .portal-btn {
+      background: linear-gradient(45deg, #ff00ff, #00ffff);
+      border: 2px solid #ff00ff;
+      animation: portalPulse 2s infinite;
+    }
+
+    @keyframes portalPulse {
+      0%, 100% { 
+        box-shadow: 0 0 20px rgba(255, 0, 255, 0.5);
+      }
+      50% { 
+        box-shadow: 0 0 40px rgba(255, 0, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.6);
+      }
+    }
+
+    #quantumDimension {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle, #1a0033, #000);
+      z-index: 2000;
+      flex-direction: column;
+      animation: dimensionShift 1s;
+    }
+
+    @keyframes dimensionShift {
+      0% { opacity: 0; transform: scale(0.8) rotate(5deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+
+    .quantum-header {
+      background: rgba(255, 0, 255, 0.2);
+      border-bottom: 2px solid #ff00ff;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .quantum-header h2 {
+      color: #ff00ff;
+      font-size: 2em;
+      text-shadow: 0 0 20px #ff00ff;
+      margin-bottom: 10px;
+    }
+
+    .quantum-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .ai-avatar {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      background: linear-gradient(45deg, #ff00ff, #00ffff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3em;
+      animation: avatarFloat 3s ease-in-out infinite;
+      box-shadow: 0 0 40px rgba(255, 0, 255, 0.6);
+    }
+
+    @keyframes avatarFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+
+    .ai-message {
+      background: rgba(255, 0, 255, 0.1);
+      border: 2px solid #ff00ff;
+      border-radius: 15px;
+      padding: 20px;
+      max-width: 800px;
+      color: #fff;
+      font-size: 1.1em;
+      line-height: 1.6;
+      animation: messageAppear 0.5s;
+    }
+
+    @keyframes messageAppear {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .formula-box {
+      background: rgba(0, 255, 255, 0.1);
+      border: 2px solid #0ff;
+      border-radius: 10px;
+      padding: 25px;
+      margin-top: 20px;
+      max-width: 800px;
+      width: 100%;
+    }
+
+    .formula-title {
+      color: #0ff;
+      font-size: 1.3em;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    .formula-content {
+      color: #fff;
+      font-size: 1.1em;
+      line-height: 1.8;
+    }
+
+    .formula-math {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 15px;
+      border-radius: 5px;
+      margin: 15px 0;
+      font-family: 'Courier New', monospace;
+      color: #00ff41;
+      text-align: center;
+      font-size: 1.2em;
+    }
+
+    .close-quantum {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 0, 255, 0.3);
+      border: 2px solid #ff00ff;
+      color: #ff00ff;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 1em;
+    }
+
+    .close-quantum:hover {
+      background: rgba(255, 0, 255, 0.5);
+    }
+
+    .task-input-area {
+      margin-top: 30px;
+      width: 100%;
+      max-width: 800px;
+    }
+
+    .task-input-area input {
+      width: 100%;
+      padding: 15px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 2px solid #ff00ff;
+      color: #ff00ff;
+      font-family: 'Courier New', monospace;
+      font-size: 1em;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+
+    .task-input-area button {
+      width: 100%;
+      background: linear-gradient(45deg, #ff00ff, #00ffff);
+    }
   </style>
 </head>
 <body>
@@ -409,7 +575,7 @@
 
   <div id="namePrompt">
     <div class="terminal-header">
-      <h1> CIPHERCHAIN </h1>
+      <h1>⚡ CIPHERCHAIN ⚡</h1>
       <p>SECURE ENCRYPTED COMMUNICATION NETWORK</p>
     </div>
     <div class="access-panel">
@@ -436,19 +602,14 @@
         <div class="user-info">
           <span id="userDisplay"></span>
         </div>
+        <button class="icon-btn portal-btn" onclick="openQuantumDimension()">🌀 QUANTUM PORTAL</button>
         <button class="icon-btn" onclick="toggleSettings()">⚙️ SETTINGS</button>
-        <button class="icon-btn" onclick="clearLocalMessages()">🗑️ CLEAR LOCAL</button>
+        <button class="icon-btn" onclick="clearMessages()">🗑️ CLEAR</button>
       </div>
     </div>
 
     <div class="settings-panel" id="settingsPanel">
       <h3>⚙️ TERMINAL SETTINGS</h3>
-      <div class="setting-item">
-        <label class="checkbox-label">
-          <input type="checkbox" id="saveLocal" checked />
-          <span>💾 Save Messages Locally</span>
-        </label>
-      </div>
       <div class="setting-item">
         <label class="checkbox-label">
           <input type="checkbox" id="showTimestamp" checked />
@@ -460,9 +621,6 @@
           <input type="checkbox" id="soundEffects" />
           <span>🔊 Sound Effects</span>
         </label>
-      </div>
-      <div class="setting-item">
-        <button onclick="exportMessages()">📥 EXPORT CHAT LOG</button>
       </div>
     </div>
 
@@ -484,257 +642,466 @@
     </div>
   </div>
 
+  <div id="quantumDimension">
+    <button class="close-quantum" onclick="closeQuantumDimension()">✕ EXIT PORTAL</button>
+    <div class="quantum-header">
+      <h2>🌌 QUANTUM AI DIMENSION 🌌</h2>
+      <p style="color: #0ff;">Reality Calculation & Formula Generation System</p>
+    </div>
+    <div class="quantum-content" id="quantumContent">
+      <div class="ai-avatar">🤖</div>
+      <div class="ai-message" id="aiGreeting"></div>
+      <div class="task-input-area">
+        <input type="text" id="taskInput" placeholder="Describe your real-world task or problem..." />
+        <button onclick="generateFormula()">🔮 GENERATE QUANTUM FORMULA</button>
+      </div>
+      <div id="formulaDisplay"></div>
+    </div>
+  </div>
+
   <div id="imageModal">
     <img id="modalImage" src="" />
   </div>
-
   <script>
     // Matrix background effect
-    const canvas = document.getElementById('matrix-bg');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+const canvas = document.getElementById('matrix-bg');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-    const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノ';
-    const fontSize = 14;
-    const columns = canvas.width / fontSize;
-    const drops = Array(Math.floor(columns)).fill(1);
+const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノ';
+const fontSize = 14;
+const columns = canvas.width / fontSize;
+const drops = Array(Math.floor(columns)).fill(1);
 
-    function drawMatrix() {
-      ctx.fillStyle = 'rgba(10, 14, 39, 0.05)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#00ff41';
-      ctx.font = fontSize + 'px monospace';
+function drawMatrix() {
+  ctx.fillStyle = 'rgba(10, 14, 39, 0.05)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#00ff41';
+  ctx.font = fontSize + 'px monospace';
 
-      for (let i = 0; i < drops.length; i++) {
-        const text = chars[Math.floor(Math.random() * chars.length)];
-        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-          drops[i] = 0;
-        }
-        drops[i]++;
-      }
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+      drops[i] = 0;
+    }
+    drops[i]++;
+  }
+}
+
+setInterval(drawMatrix, 33);
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+// Chat functionality
+window.onload = function () {
+  const socket = new WebSocket('wss://groupchat-mfp1.onrender.com');
+  let clientId = null;
+  let myName = '';
+
+  const imageModal = document.getElementById('imageModal');
+  const modalImage = document.getElementById('modalImage');
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === 'assign-id') {
+      clientId = data.id;
+      return;
     }
 
-    setInterval(drawMatrix, 33);
+    displayMessage(data);
+  };
 
-    window.addEventListener('resize', () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    });
+  function displayMessage(data) {
+    const messages = document.getElementById('messages');
+    const msg = document.createElement('div');
+    msg.classList.add('message');
+    msg.classList.add(data.from === clientId ? 'me' : 'other');
 
-    // Chat functionality
-    window.onload = function () {
-      const socket = new WebSocket('wss://groupchat-mfp1.onrender.com');
-      let clientId = null;
-      let myName = '';
-      const LOCAL_STORAGE_KEY = 'cipherchain_messages';
+    const header = document.createElement('div');
+    header.classList.add('message-header');
 
-      const imageModal = document.getElementById('imageModal');
-      const modalImage = document.getElementById('modalImage');
+    const senderName = data.from === clientId ? 'You' : (data.name || `Agent-${data.from}`);
+    const sender = document.createElement('span');
+    sender.classList.add('sender-name');
+    sender.textContent = senderName;
 
-      // Load local messages
-      function loadLocalMessages() {
-        if (!document.getElementById('saveLocal').checked) return;
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const messages = JSON.parse(saved);
-          messages.forEach(msg => displayMessage(msg, false));
-        }
-      }
+    const timestamp = document.createElement('span');
+    timestamp.classList.add('timestamp');
+    const time = data.timestamp ? new Date(data.timestamp) : new Date();
+    timestamp.textContent = time.toLocaleTimeString();
+    if (document.getElementById('showTimestamp') && !document.getElementById('showTimestamp').checked) {
+      timestamp.style.display = 'none';
+    }
 
-      // Save message locally
-      
+    header.appendChild(sender);
+    header.appendChild(timestamp);
+    msg.appendChild(header);
 
-      socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+    const content = document.createElement('div');
+    content.classList.add('message-content');
 
-        if (data.type === 'assign-id') {
-          clientId = data.id;
-          return;
-        }
-
-        displayMessage(data, true);
-      };
-
-      function displayMessage(data, shouldSave) {
-        const messages = document.getElementById('messages');
-        const msg = document.createElement('div');
-        msg.classList.add('message');
-        msg.classList.add(data.from === clientId ? 'me' : 'other');
-
-        const header = document.createElement('div');
-        header.classList.add('message-header');
-
-        const senderName = data.from === clientId ? 'You' : (data.name || `Agent-${data.from}`);
-        const sender = document.createElement('span');
-        sender.classList.add('sender-name');
-        sender.textContent = senderName;
-
-        const timestamp = document.createElement('span');
-        timestamp.classList.add('timestamp');
-        const time = data.timestamp ? new Date(data.timestamp) : new Date();
-        timestamp.textContent = time.toLocaleTimeString();
-        if (!document.getElementById('showTimestamp').checked) {
-          timestamp.style.display = 'none';
-        }
-
-        header.appendChild(sender);
-        header.appendChild(timestamp);
-        msg.appendChild(header);
-
-        const content = document.createElement('div');
-        content.classList.add('message-content');
-
-        if (data.image) {
-          const img = document.createElement('img');
-          img.src = data.image;
-          img.addEventListener('click', () => {
-            modalImage.src = data.image;
-            imageModal.style.display = 'flex';
-          });
-          content.appendChild(img);
-        }
-
-        if (data.video) {
-          const video = document.createElement('video');
-          video.src = data.video;
-          video.controls = true;
-          content.appendChild(video);
-        }
-
-        if (data.text) {
-          const textDiv = document.createElement('div');
-          textDiv.textContent = data.text;
-          content.appendChild(textDiv);
-        }
-
-        msg.appendChild(content);
-        messages.appendChild(msg);
-        messages.scrollTop = messages.scrollHeight;
-
-        if (shouldSave) {
-          saveMessageLocally({...data, timestamp: time.toISOString()});
-        }
-
-        // Play sound effect
-        if (document.getElementById('soundEffects').checked && data.from !== clientId) {
-          playNotificationSound();
-        }
-      }
-
-      function playNotificationSound() {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        gainNode.gain.value = 0.1;
-        
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.1);
-      }
-
-      imageModal.addEventListener('click', () => {
-        imageModal.style.display = 'none';
+    if (data.image) {
+      const img = document.createElement('img');
+      img.src = data.image;
+      img.addEventListener('click', () => {
+        modalImage.src = data.image;
+        imageModal.style.display = 'flex';
       });
+      content.appendChild(img);
+    }
 
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-          imageModal.style.display = 'none';
-          document.getElementById('settingsPanel').style.display = 'none';
-        }
-      });
+    if (data.video) {
+      const video = document.createElement('video');
+      video.src = data.video;
+      video.controls = true;
+      content.appendChild(video);
+    }
 
-      document.getElementById('input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') sendMessage();
-      });
+    if (data.text) {
+      const textDiv = document.createElement('div');
+      textDiv.textContent = data.text;
+      content.appendChild(textDiv);
+    }
 
-      window.submitName = function () {
-        const nameInput = document.getElementById('inputName');
-        const inputname = nameInput.value.trim();
-        if (!inputname) return alert('⚠️ CODENAME REQUIRED');
-        myName = inputname;
-        socket.send(JSON.stringify({ type: 'set-name', name: myName }));
-        document.getElementById('namePrompt').style.display = 'none';
-        document.getElementById('chatInterface').style.display = 'flex';
-        document.getElementById('userDisplay').textContent = `[${myName}]`;
-       
-      };
+    msg.appendChild(content);
+    messages.appendChild(msg);
+    messages.scrollTop = messages.scrollHeight;
 
-      window.sendMessage = function () {
-        const input = document.getElementById('input');
-        const text = input.value.trim();
-        if (!text) return;
+    if (document.getElementById('soundEffects') && document.getElementById('soundEffects').checked && data.from !== clientId) {
+      playNotificationSound();
+    }
+  }
+
+  function playNotificationSound() {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    gainNode.gain.value = 0.1;
+    
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.1);
+  }
+
+  imageModal.addEventListener('click', () => {
+    imageModal.style.display = 'none';
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      imageModal.style.display = 'none';
+      if (document.getElementById('settingsPanel')) {
+        document.getElementById('settingsPanel').style.display = 'none';
+      }
+    }
+  });
+
+  document.getElementById('input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+
+  window.submitName = function () {
+    const nameInput = document.getElementById('inputName');
+    const inputname = nameInput.value.trim();
+    if (!inputname) return alert('⚠️ CODENAME REQUIRED');
+    myName = inputname;
+    socket.send(JSON.stringify({ type: 'set-name', name: myName }));
+    document.getElementById('namePrompt').style.display = 'none';
+    document.getElementById('chatInterface').style.display = 'flex';
+    document.getElementById('userDisplay').textContent = `[${myName}]`;
+  };
+
+  window.sendMessage = function () {
+    const input = document.getElementById('input');
+    const text = input.value.trim();
+    if (!text) return;
+    socket.send(JSON.stringify({ type: 'text', text, name: myName }));
+    input.value = '';
+  };
+
+  window.sendImage = function () {
+    const input = document.getElementById('imageInput');
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      socket.send(JSON.stringify({ type: 'image', image: reader.result, name: myName }));
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  };
+
+  window.sendVideo = function () {
+    const input = document.getElementById('videoInput');
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      socket.send(JSON.stringify({ type: 'video', video: reader.result, name: myName }));
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  };
+
+  window.shareLocation = function () {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const text = `📍 Location: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
         socket.send(JSON.stringify({ type: 'text', text, name: myName }));
-        input.value = '';
-      };
+      }, () => {
+        alert('⚠️ Location access denied');
+      });
+    } else {
+      alert('⚠️ Geolocation not supported');
+    }
+  };
 
-      window.sendImage = function () {
-        const input = document.getElementById('imageInput');
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          socket.send(JSON.stringify({ type: 'image', image: reader.result, name: myName }));
-        };
-        reader.readAsDataURL(file);
-        input.value = '';
-      };
+  window.sendFile = function () {
+    const fileName = prompt('📁 Enter file name to share:');
+    if (fileName) {
+      const text = `📁 Shared file: ${fileName}`;
+      socket.send(JSON.stringify({ type: 'text', text, name: myName }));
+    }
+  };
 
-      window.sendVideo = function () {
-        const input = document.getElementById('videoInput');
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          socket.send(JSON.stringify({ type: 'video', video: reader.result, name: myName }));
-        };
-        reader.readAsDataURL(file);
-        input.value = '';
-      };
+  window.toggleSettings = function () {
+    const panel = document.getElementById('settingsPanel');
+    if (panel) {
+      panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    }
+  };
 
-      window.shareLocation = function () {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition((position) => {
-            const text = `📍 Location: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
-            socket.send(JSON.stringify({ type: 'text', text, name: myName }));
-          }, () => {
-            alert('⚠️ Location access denied');
-          });
-        } else {
-          alert('⚠️ Geolocation not supported');
-        }
-      };
+  window.clearMessages = function () {
+    if (confirm('🗑️ Clear all messages from view?')) {
+      document.getElementById('messages').innerHTML = '';
+    }
+  };
+};
 
-      window.sendFile = function () {
-        const fileName = prompt('📁 Enter file name to share:');
-        if (fileName) {
-          const text = `📁 Shared file: ${fileName}`;
-          socket.send(JSON.stringify({ type: 'text', text, name: myName }));
-        }
-      };
+// Quantum Dimension AI Functions
+window.openQuantumDimension = async function() {
+  const quantumDim = document.getElementById('quantumDimension');
+  if (!quantumDim) return;
+  
+  quantumDim.style.display = 'flex';
+  
+  const now = new Date();
+  const phTime = now.toLocaleString('en-US', { timeZone: 'Asia/Manila' });
+  const greeting = `
+    🌟 Greetings, digital traveler! Welcome to the Quantum Dimension! 🌟
+    <br><br>
+    I am NEXUS-AI, your reality computation assistant. The current time in the Philippines is <strong>${phTime}</strong>.
+    <br><br>
+    🔮 I can generate practical formulas and algorithms for real-world problems. Whether you need to calculate compound interest, optimize delivery routes, predict stock trends, analyze health metrics, or solve complex mathematical puzzles - I'm here to help!
+    <br><br>
+    💡 Simply describe your task or problem, and I'll create a custom formula with practical applications!
+  `;
+  
+  const aiGreeting = document.getElementById('aiGreeting');
+  if (aiGreeting) {
+    aiGreeting.innerHTML = greeting;
+  }
+  
+  await speakText("Hello guys! Welcome to the Quantum Dimension. Based on your tasks, I'll help you solve real-world problems with powerful formulas. The current time in the Philippines is " + phTime);
+};
 
-      window.toggleSettings = function () {
-        const panel = document.getElementById('settingsPanel');
-        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-      };
+window.closeQuantumDimension = function() {
+  const quantumDim = document.getElementById('quantumDimension');
+  if (quantumDim) {
+    quantumDim.style.display = 'none';
+  }
+  const formulaDisplay = document.getElementById('formulaDisplay');
+  if (formulaDisplay) {
+    formulaDisplay.innerHTML = '';
+  }
+};
 
-      window.clearLocalMessages = function () {
-        if (confirm('🗑️ Clear all locally saved messages?')) {
-          localStorage.removeItem(LOCAL_STORAGE_KEY);
-          document.getElementById('messages').innerHTML = '';
-          alert('✅ Local messages cleared');
-        }
-      };
+window.generateFormula = async function() {
+  const taskInput = document.getElementById('taskInput');
+  if (!taskInput) return;
+  
+  const task = taskInput.value.trim();
+  if (!task) {
+    alert('⚠️ Please describe your task or problem!');
+    return;
+  }
 
-      
+  const formulaDisplay = document.getElementById('formulaDisplay');
+  if (formulaDisplay) {
+    formulaDisplay.innerHTML = '<div class="ai-message">🔮 Calculating quantum formula...</div>';
+  }
+
+  // Generate formula locally
+  const localFormula = generateLocalFormula(task);
+  displayFormulaResult(task, localFormula);
+  await speakText("I've generated a quantum formula for your task. Check out the results!");
+
+  taskInput.value = '';
+};
+
+function generateLocalFormula(task) {
+  const taskLower = task.toLowerCase();
+  
+  // Investment/Compound Interest
+  if (taskLower.includes('invest') || taskLower.includes('compound') || taskLower.includes('savings')) {
+    return `
+      <strong>Formula:</strong> Compound Interest Calculator
+      <br><br>
+      <div class="formula-math">A = P(1 + r/n)^(nt)</div>
+      <br>
+      <strong>Variables:</strong><br>
+      • A = Final amount<br>
+      • P = Principal (initial investment)<br>
+      • r = Annual interest rate (decimal)<br>
+      • n = Compounds per year<br>
+      • t = Time in years
+      <br><br>
+      <strong>Example:</strong> $10,000 invested at 5% annually for 10 years, compounded monthly:<br>
+      A = 10000(1 + 0.05/12)^(12×10) = <strong>$16,470.09</strong>
+      <br><br>
+      <strong>Applications:</strong> Retirement planning, savings goals, investment analysis
+    `;
+  }
+  
+  // BMI/Health
+  if (taskLower.includes('bmi') || taskLower.includes('health') || taskLower.includes('weight')) {
+    return `
+      <strong>Formula:</strong> Body Mass Index & Calorie Calculator
+      <br><br>
+      <div class="formula-math">BMI = weight(kg) / height(m)²</div>
+      <div class="formula-math">Daily Calories = 10×weight + 6.25×height - 5×age + s</div>
+      <br>
+      <strong>Variables:</strong><br>
+      • s = +5 for males, -161 for females
+      <br><br>
+      <strong>Example:</strong> 70kg person, 1.75m tall, 30 years old, male:<br>
+      BMI = 70 / (1.75)² = <strong>22.86 (Normal)</strong><br>
+      Calories = 10(70) + 6.25(175) - 5(30) + 5 = <strong>1,668 cal/day</strong>
+      <br><br>
+      <strong>Applications:</strong> Fitness tracking, diet planning, health monitoring
+    `;
+  }
+  
+  // Distance/Speed/Time
+  if (taskLower.includes('distance') || taskLower.includes('speed') || taskLower.includes('travel')) {
+    return `
+      <strong>Formula:</strong> Travel Time & Fuel Cost Calculator
+      <br><br>
+      <div class="formula-math">Time = Distance / Speed</div>
+      <div class="formula-math">Fuel Cost = (Distance / Efficiency) × Price</div>
+      <br>
+      <strong>Example:</strong> 300km trip, 80km/h speed, 15km/L efficiency, ₱60/L fuel:<br>
+      Time = 300 / 80 = <strong>3.75 hours</strong><br>
+      Cost = (300 / 15) × 60 = <strong>₱1,200</strong>
+      <br><br>
+      <strong>Applications:</strong> Trip planning, delivery logistics, budget estimation
+    `;
+  }
+  
+  // Loan/Mortgage
+  if (taskLower.includes('loan') || taskLower.includes('mortgage') || taskLower.includes('payment')) {
+    return `
+      <strong>Formula:</strong> Monthly Loan Payment Calculator
+      <br><br>
+      <div class="formula-math">M = P × [r(1+r)^n] / [(1+r)^n - 1]</div>
+      <br>
+      <strong>Variables:</strong><br>
+      • M = Monthly payment<br>
+      • P = Loan principal<br>
+      • r = Monthly interest rate (annual/12)<br>
+      • n = Number of payments
+      <br><br>
+      <strong>Example:</strong> ₱1,000,000 loan, 5% annual rate, 20 years:<br>
+      r = 0.05/12 = 0.00417<br>
+      M = <strong>₱6,599.56 per month</strong>
+      <br><br>
+      <strong>Applications:</strong> Home mortgages, car loans, business financing
+    `;
+  }
+  
+  // GPA/Grade
+  if (taskLower.includes('gpa') || taskLower.includes('grade') || taskLower.includes('score')) {
+    return `
+      <strong>Formula:</strong> GPA & Weighted Grade Calculator
+      <br><br>
+      <div class="formula-math">GPA = Σ(Grade × Credits) / Σ(Credits)</div>
+      <br>
+      <strong>Example:</strong> 5 subjects with grades and units:<br>
+      • Math (3 units): 1.75<br>
+      • English (3 units): 1.50<br>
+      • Science (4 units): 2.00<br>
+      • History (3 units): 1.75<br>
+      • PE (2 units): 1.25<br>
+      <br>
+      GPA = (1.75×3 + 1.50×3 + 2.00×4 + 1.75×3 + 1.25×2) / 15 = <strong>1.73</strong>
+      <br><br>
+      <strong>Applications:</strong> Academic planning, scholarship requirements, college admissions
+    `;
+  }
+  
+  // Default: Productivity/Task Management
+  return `
+    <strong>Formula:</strong> Productivity & Time Management Optimizer
+    <br><br>
+    <div class="formula-math">Priority Score = (Urgency × 3 + Importance × 2) / Effort</div>
+    <div class="formula-math">Optimal Focus Time = 90 - (Distractions × 5)</div>
+    <br>
+    <strong>Variables (Scale 1-10):</strong><br>
+    • Urgency: How soon it must be done<br>
+    • Importance: Impact on goals<br>
+    • Effort: Time/energy required<br>
+    • Distractions: Environmental factors
+    <br><br>
+    <strong>Example:</strong> Project deadline task:<br>
+    Urgency=9, Importance=8, Effort=6, Distractions=3<br>
+    Priority = (9×3 + 8×2) / 6 = <strong>7.17 (High Priority)</strong><br>
+    Focus = 90 - (3×5) = <strong>75 minutes optimal</strong>
+    <br><br>
+    <strong>Applications:</strong> Task prioritization, work scheduling, productivity optimization
+  `;
+}
+
+function displayFormulaResult(task, formula) {
+  const formulaDisplay = document.getElementById('formulaDisplay');
+  if (!formulaDisplay) return;
+  
+  formulaDisplay.innerHTML = `
+    <div class="formula-box">
+      <div class="formula-title">⚡ QUANTUM FORMULA GENERATED ⚡</div>
+      <div style="color: #ff00ff; margin-bottom: 15px;"><strong>Task:</strong> ${task}</div>
+      <div class="formula-content">${formula}</div>
+    </div>
+  `;
+}
+
+// Text-to-Speech function
+async function speakText(text) {
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.1;
+    utterance.pitch = 1.0;
+    utterance.volume = 0.8;
+    speechSynthesis.speak(utterance);
+  }
+}
+
+// Enter key support for task input
+if (document.getElementById('taskInput')) {
+  document.getElementById('taskInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') generateFormula();
+  });
+}
   </script>
 </body>
 </html>
-
-
