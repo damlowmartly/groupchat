@@ -1097,11 +1097,16 @@ async function speakText(text) {
 }
 
 // Enter key support for task input
-if (document.getElementById('taskInput')) {
-  document.getElementById('taskInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') generateFormula();
-  });
-}
+// At the very end, replace the last lines with:
+document.addEventListener('DOMContentLoaded', function() {
+  const taskInput = document.getElementById('taskInput');
+  if (taskInput) {
+    taskInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') generateFormula();
+    });
+  }
+});
   </script>
 </body>
 </html>
+
