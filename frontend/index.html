@@ -1117,34 +1117,63 @@ window.onload = function () {
     if (e.key === 'Enter') sendMessage();
   });
 
-  window.submitName = function () {
-    const nameInput = document.getElementById('inputName');
-    const inputname = nameInput.value.trim();
-    if (!inputname) return alert('⚠️ CODENAME REQUIRED');
-    
-    myName = inputname;
-    myRole = detectRole(myName);
-    
-    socket.send(JSON.stringify({ type: 'set-name', name: myName }));
-    document.getElementById('namePrompt').style.display = 'none';
-    document.getElementById('chatInterface').style.display = 'flex';
-    
-    // Update UI based on role
-    if (myRole === 'ceo') {
-      document.getElementById('roleDisplay').innerHTML = '<span style="color: #ffd700;">👑 CEO</span> | ';
-      document.getElementById('ceoControls').style.display = 'block';
-      document.getElementById('ceoTaskControls').style.display = 'block';
-      populateAgentList();
-      loadAllTasks();
-    } else {
-      document.getElementById('roleDisplay').innerHTML = '<span style="color: #0ff;">🔧 AGENT</span> | ';
-      document.getElementById('agentTaskView').style.display = 'block';
-      loadMyTasks();
+ window.submitName = function () {
+  const nameInput = document.getElementById('inputName');
+  const inputname = nameInput.value.trim();
+  if (!inputname) return alert('⚠️ CODENAME REQUIRED');
+  
+  myName = inputname;
+  myRole = detectRole(myName);
+  
+  // Save agent name to list
+  if (myRole === 'agent') {
+    let agentList = [];
+    const savedAgents = localStorage.getItem('cipherchain_agents');
+    if (savedAgents) {
+      agentList = JSON.parse(savedAgents);
     }
-    
-    document.getElementById('userDisplay').textContent = `[${myName}]`;
-    loadRoomMessages();
-  };
+    if (!agentList.includes(myName)) {
+      agentList.push(myName);
+      localStorage.setItem('cipherchain_agents', JSON.stringify(agentList));
+    }
+  }
+  
+  socket.send(JSON.stringify({ type: 'set-name', name: myName }));
+  document.getElementById('namePrompt').style.display = 'none';
+  document.getElementById('chatInterface').style.display = 'flex';
+  
+  // Update UI based on role
+  if (myRole === 'ceo') {
+    document.getElementById('roleDisplay').innerHTML = '<span style="color: #ffd700;">👑 CEO</span> | ';
+    document.getElementById('ceoControls').style.display = 'block';
+    document.getElementById('ceoTaskControls').style.display = 'block';
+    populateAgentList();
+    loadAllTasks();
+  } else {
+    document.getElementById('roleDisplay').innerHTML = '<span style="color: #0ff;">🔧 AGENT</span> | ';
+    document.getElementById('agentTaskView').style.display = 'block';
+    loadMyTasks();
+  }
+  
+  // Load all dimensions for all users
+  Object.keys(dimensions).forEach(dimName => {
+    if (dimName !== 'main-hq') {
+      const list = document.getElementById('dimensionList');
+      const existing = document.querySelector(`[data-room="${dimName}"]`);
+      if (!existing) {
+        const item = document.createElement('div');
+        item.className = 'dimension-item';
+        item.setAttribute('data-room', dimName);
+        item.onclick = () => switchDimension(dimName);
+        item.innerHTML = `<span class="dimension-icon">🌐</span><span>${dimName.toUpperCase().replace(/-/g, ' ')}</span>`;
+        list.appendChild(item);
+      }
+    }
+  });
+  
+  document.getElementById('userDisplay').textContent = `[${myName}]`;
+  loadRoomMessages();
+};
 
   window.sendMessage = function () {
     const input = document.getElementById('input');
@@ -1306,11 +1335,14 @@ window.createDimension = function() {
   if (!roomName) return;
   
   const cleanName = roomName.toLowerCase().replace(/\s+/g, '-');
+  
+  // Check if dimension already exists
   if (dimensions[cleanName]) {
     alert('⚠️ Dimension already exists!');
     return;
   }
   
+  // Create new dimension
   dimensions[cleanName] = [];
   saveDimensions();
   
@@ -1320,11 +1352,38 @@ window.createDimension = function() {
   item.className = 'dimension-item';
   item.setAttribute('data-room', cleanName);
   item.onclick = () => switchDimension(cleanName);
-  item.innerHTML = `<span class="dimension-icon">🌐</span><span>${cleanName.toUpperCase().replace(/-/g, ' ')}</span>`;
-  list.appendChild(item);
   
-  alert(`✅ Dimension "${cleanName}" created!`);
-};
+  // Get appropriate icon based on name
+  let icon = '🌐';
+  if (cleanName.includes('project')) icon = '📁';
+  if (cleanName.includes('secret')) icon = '🔒';
+  if (cleanName.includes('dev')) icon = '💻';
+  if (cleanName.includes('ops')) icon = '⚙️';
+  
+  item.innerHTML = `
+      socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === 'assign-id') {
+      clientId = data.id;
+      return;
+    }
+
+    // Add timestamp if not present
+    if (!data.timestamp) {
+      data.timestamp = new Date().toISOString();
+    }
+
+    // Save message to appropriate room
+    if (data.room) {
+      saveRoomMessage(data);
+    }
+
+    // Only display messages for current room
+    if (data.room === currentRoom) {
+      displayMessage(data);
+    }
+  };
 // Task Management
 function populateAgentList() {
   const select = document.getElementById('assignTo');
@@ -1577,5 +1636,6 @@ async function speakText(text) {
 }</script>
 </body>
 </html>
+
 
 
