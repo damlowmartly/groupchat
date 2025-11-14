@@ -932,17 +932,13 @@ let myRole = 'agent'; // 'ceo' or 'agent'
 let currentRoom = 'main-hq';
 let dimensions = {};
 
-// Role detection
 function detectRole(codename) {
   const lower = codename.toLowerCase();
   if (lower === 'shab01') {
     return 'ceo';
-  } else if (lower.startsWith('agent')) {
-    return 'agent';
   }
-  return 'agent'; // default
+  return 'agent'; // Everyone else is an agent
 }
-
 // Initialize dimensions in memory
 function initDimensions() {
   dimensions['main-hq'] = [];
@@ -1339,6 +1335,20 @@ function populateAgentList() {
     option.textContent = `Agent ${i}`;
     select.appendChild(option);
   }
+  
+  // Also add any custom agent names from localStorage
+  const savedAgents = localStorage.getItem('cipherchain_agents');
+  if (savedAgents) {
+    const agentList = JSON.parse(savedAgents);
+    agentList.forEach(agentName => {
+      if (!agentName.startsWith('agent') && agentName !== 'shab01') {
+        const option = document.createElement('option');
+        option.value = agentName;
+        option.textContent = agentName;
+        select.appendChild(option);
+      }
+    });
+  }
 }
 
 window.assignTask = function() {
@@ -1567,4 +1577,5 @@ async function speakText(text) {
 }</script>
 </body>
 </html>
+
 
