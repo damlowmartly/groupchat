@@ -1277,13 +1277,16 @@ window.toggleTaskPanel = function() {
 window.switchDimension = function(roomName) {
   currentRoom = roomName;
   document.getElementById('messages').innerHTML = '';
-  document.getElementById('roomTitle').textContent = `⚡ ${roomName.toUpperCase().replace('-', ' ')}`;
+  document.getElementById('roomTitle').textContent = `⚡ ${roomName.toUpperCase().replace(/-/g, ' ')}`;
   
   // Update active dimension
   document.querySelectorAll('.dimension-item').forEach(item => {
     item.classList.remove('active');
   });
-  document.querySelector(`[data-room="${roomName}"]`).classList.add('active');
+  const activeItem = document.querySelector(`[data-room="${roomName}"]`);
+  if (activeItem) {
+    activeItem.classList.add('active');
+  }
   
   // Load room messages
   const key = `cipherchain_room_${roomName}`;
@@ -1291,61 +1294,25 @@ window.switchDimension = function(roomName) {
   if (saved) {
     const messages = JSON.parse(saved);
     messages.forEach(msg => {
-      const event = { data: JSON.stringify(msg) };
-      // Trigger display without re-saving
-      displayMessageDirect(msg);
+      displayMessage(msg);
     });
   }
-};
-
-function displayMessageDirect(data) {
-  const messages = document.getElementById('messages');
-  const msg = document.createElement('div');
-  msg.classList.add('message');
-  msg.classList.add(data.from === clientId ? 'me' : 'other');
-
-  const header = document.createElement('div');
-  header.classList.add('message-header');
-
-  const senderName = data.from === clientId ? 'You' : (data.name || `Agent-${data.from}`);
-  const sender = document.createElement('span');
-  sender.classList.add('sender-name');
   
-  let roleBadge = data.role === 'ceo' ? '👑 CEO ' : '🔧 ';
-  sender.textContent = roleBadge + senderName;
-
-  const timestamp = document.createElement('span');
-  timestamp.classList.add('timestamp');
-  const time = data.timestamp ? new Date(data.timestamp) : new Date();
-  timestamp.textContent = time.toLocaleTimeString();
-
-  header.appendChild(sender);
-  header.appendChild(timestamp);
-  msg.appendChild(header);
-
-  const content = document.createElement('div');
-  content.classList.add('message-content');
-
-  if (data.text) {
-    const textDiv = document.createElement('div');
-    textDiv.textContent = data.text;
-    content.appendChild(textDiv);
-  }
-
-  msg.appendChild(content);
-  messages.appendChild(msg);
-  messages.scrollTop = messages.scrollHeight;
-}
-
+  hideAllPanels();
+};
 window.createDimension = function() {
-  if (myRole !== 'ceo') return;
+  if (myRole !== 'ceo') {
+    alert('⚠️ Only CEO can create dimensions!');
+    return;
+  }
   
   const roomName = prompt('🌀 Enter dimension name (e.g., project-alpha):');
   if (!roomName) return;
   
   const cleanName = roomName.toLowerCase().replace(/\s+/g, '-');
   if (dimensions[cleanName]) {
-    return alert('⚠️ Dimension already exists!');
+    alert('⚠️ Dimension already exists!');
+    return;
   }
   
   dimensions[cleanName] = [];
@@ -1357,12 +1324,11 @@ window.createDimension = function() {
   item.className = 'dimension-item';
   item.setAttribute('data-room', cleanName);
   item.onclick = () => switchDimension(cleanName);
-  item.innerHTML = `<span class="dimension-icon">🌐</span><span>${cleanName.toUpperCase().replace('-', ' ')}</span>`;
+  item.innerHTML = `<span class="dimension-icon">🌐</span><span>${cleanName.toUpperCase().replace(/-/g, ' ')}</span>`;
   list.appendChild(item);
   
   alert(`✅ Dimension "${cleanName}" created!`);
 };
-
 // Task Management
 function populateAgentList() {
   const select = document.getElementById('assignTo');
@@ -1601,3 +1567,4 @@ async function speakText(text) {
 }</script>
 </body>
 </html>
+
