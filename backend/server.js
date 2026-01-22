@@ -28,14 +28,12 @@ app.post('/tasks', (req, res) => {
   res.status(201).json(newTask);
 });
 
-// SPA fallback (fixed)
-app.get('*', (req, res) => {
+// ✅ Express 5 SPA fallback (MUST be app.use)
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
-
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
