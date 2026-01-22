@@ -29,11 +29,13 @@ app.post('/tasks', (req, res) => {
 });
 
 // SPA fallback (fixed)
-app.get('/*', (req, res) => {
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
+
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
