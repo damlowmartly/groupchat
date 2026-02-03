@@ -44,7 +44,21 @@ body {
   color: var(--gray-900);
   overflow: hidden;
 }
-
+body::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('https://i.pinimg.com/1200x/20/f5/4a/20f54ab212649282c07cd61116609cbb.jpg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  z-index: -1; /* behind all content */
+}
 .hidden {
   display: none !important;
 }
