@@ -44,7 +44,7 @@ body {
   color: var(--gray-900);
   overflow: hidden;
 }
-body::before {
+#login-screen::before {
   content: "";
   position: absolute;
   top: 0;
