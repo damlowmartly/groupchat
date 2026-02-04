@@ -18,9 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // In-memory session data
 const sessionData = {
   users: new Map(), // username -> ws connection
-  messages: [],
-  drawingEvents: [],
-  notes: []
+  messages: []
 };
 
 // Track connected users
@@ -51,9 +49,7 @@ wss.on('connection', (ws) => {
         // Send current session state to new user
         ws.send(JSON.stringify({
           type: 'session_state',
-          messages: sessionData.messages,
-          drawingEvents: sessionData.drawingEvents,
-          notes: sessionData.notes
+          messages: sessionData.messages
         }));
         
         // Broadcast online status to all users
@@ -72,68 +68,27 @@ wss.on('connection', (ws) => {
       // ============================================
       // HANDLE CHAT MESSAGES
       // ============================================
-      else if (data.type === 'chat') {
-        const chatMsg = {
-          type: 'chat',
+      else if (data.type === 'chat' || data.type === 'reminder' || data.type === 'todo' || 
+               data.type === 'note' || data.type === 'poll' || data.type === 'important') {
+        const msg = {
+          type: data.type,
           user: currentUser,
           content: data.content,
-          messageType: data.messageType || 'chat', // chat, question, decision, blocker
-          timestamp: new Date().toISOString()
+          timestamp: data.timestamp || new Date().toISOString()
         };
-        sessionData.messages.push(chatMsg);
-        broadcast(chatMsg);
+        sessionData.messages.push(msg);
+        broadcast(msg);
       }
       
       // ============================================
-      // HANDLE DRAWING EVENTS
+      // HANDLE CLEAR CHAT
       // ============================================
-      else if (data.type === 'draw') {
-        const drawEvent = {
-          type: 'draw',
-          user: currentUser,
-          action: data.action, // start, move, end
-          x: data.x,
-          y: data.y,
-          timestamp: new Date().toISOString()
-        };
-        sessionData.drawingEvents.push(drawEvent);
-        broadcast(drawEvent);
-      }
-      
-      // ============================================
-      // HANDLE CLEAR CANVAS
-      // ============================================
-      else if (data.type === 'clear_canvas') {
-        sessionData.drawingEvents = [];
+      else if (data.type === 'clear_chat') {
+        sessionData.messages = [];
         broadcast({
-          type: 'clear_canvas',
-          user: currentUser,
+          type: 'system',
+          content: `Chat cleared by ${currentUser}`,
           timestamp: new Date().toISOString()
-        });
-      }
-      
-      // ============================================
-      // HANDLE NOTES
-      // ============================================
-      else if (data.type === 'add_note') {
-        const note = {
-          id: Date.now(),
-          user: currentUser,
-          content: data.content,
-          timestamp: new Date().toISOString()
-        };
-        sessionData.notes.push(note);
-        broadcast({
-          type: 'note_added',
-          note: note
-        });
-      }
-      
-      else if (data.type === 'delete_note') {
-        sessionData.notes = sessionData.notes.filter(n => n.id !== data.noteId);
-        broadcast({
-          type: 'note_deleted',
-          noteId: data.noteId
         });
       }
       
@@ -143,9 +98,7 @@ wss.on('connection', (ws) => {
       else if (data.type === 'get_summary') {
         const summary = {
           type: 'session_summary',
-          totalMessages: sessionData.messages.filter(m => m.type === 'chat').length,
-          totalDrawEvents: sessionData.drawingEvents.length,
-          totalNotes: sessionData.notes.length,
+          totalMessages: sessionData.messages.length,
           participants: Array.from(connectedUsers),
           messages: sessionData.messages
         };
