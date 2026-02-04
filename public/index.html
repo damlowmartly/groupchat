@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>Hato & Jbro Collaboration</title>
+  <title>Hato & Jbro Messenger</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,8 +15,8 @@
   <!-- ============================================ -->
   <div id="login-screen">
     <div class="login-container">
-      <h1>🤝 Hato & Jbro Workspace</h1>
-      <p>Private collaboration for two</p>
+      <h1>💬 Hato & Jbro Messenger</h1>
+      <p>Private workspace for two</p>
       
       <form id="login-form">
         <div class="form-group">
@@ -40,145 +40,233 @@
   </div>
 
   <!-- ============================================ -->
-  <!-- MAIN WORKSPACE -->
+  <!-- MESSENGER INTERFACE -->
   <!-- ============================================ -->
-  <div id="workspace" class="hidden">
+  <div id="messenger" class="hidden">
     
-    <!-- LEFT SIDEBAR / NAVBAR -->
-    <nav class="sidebar">
-      <div class="sidebar-header">
-        <h2>🤝 Workspace</h2>
-        <div id="current-user" class="current-user"></div>
-      </div>
-      
-      <!-- Online Status -->
-      <div class="online-status">
-        <h3>Online</h3>
-        <div id="online-users"></div>
-        <div id="connection-status" class="connection-status">
-          <span class="status-dot"></span>
-          <span class="status-text">Connecting...</span>
+    <!-- Top Header Bar -->
+    <header class="messenger-header">
+      <div class="header-left">
+        <div class="online-indicator">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="partner-name">Waiting...</span>
         </div>
       </div>
-      
-      <!-- Navigation Tabs -->
-      <div class="nav-tabs">
-        <button class="nav-tab active" data-tab="draw">
-          <span class="tab-icon">🎨</span>
-          <span class="tab-label">Draw</span>
-        </button>
-        <button class="nav-tab" data-tab="messages">
-          <span class="tab-icon">💬</span>
-          <span class="tab-label">Messages</span>
-        </button>
-        <button class="nav-tab" data-tab="notes">
-          <span class="tab-icon">📝</span>
-          <span class="tab-label">Notes</span>
-        </button>
+      <div class="header-center">
+        <h1>💬 Messenger</h1>
       </div>
-      
-      <!-- Session Actions -->
-      <div class="session-actions">
-        <button id="end-session-btn" class="btn-secondary">End Session</button>
-        <button id="logout-btn" class="btn-logout">Logout</button>
+      <div class="header-right">
+        <button class="icon-btn" id="menu-btn" title="Menu">☰</button>
       </div>
-    </nav>
+    </header>
 
-    <!-- RIGHT MAIN CONTENT PANEL -->
-    <main class="main-content">
-      
-      <!-- ============================================ -->
-      <!-- DRAW TAB -->
-      <!-- ============================================ -->
-      <div id="draw-panel" class="content-panel active">
-        <div class="panel-header">
-          <h2>🎨 Shared Canvas</h2>
-          <div class="panel-actions">
-            <input type="text" id="canvas-label" placeholder="Add label (optional)" class="canvas-label-input">
-            <button id="clear-canvas-btn" class="btn-danger">Clear Canvas</button>
-          </div>
-        </div>
-        <div class="canvas-container">
-          <canvas id="drawing-canvas"></canvas>
-          <div id="canvas-label-display" class="canvas-label"></div>
-        </div>
+    <!-- Messages Container -->
+    <main class="messages-area" id="messages-area">
+      <div class="date-divider">
+        <span id="current-date">Today</span>
       </div>
-
-      <!-- ============================================ -->
-      <!-- MESSAGES TAB (FB/Instagram Style) -->
-      <!-- ============================================ -->
-      <div id="messages-panel" class="content-panel">
-        <div class="panel-header">
-          <h2>💬 Messages</h2>
-        </div>
-        
-        <div id="messages-container" class="messages-container">
-          <!-- Messages will be dynamically added here -->
-        </div>
-        
-        <!-- Message Input (Fixed at Bottom) -->
-        <div class="message-input-bar">
-          <select id="message-type" class="message-type-select">
-            <option value="chat">💬 Chat</option>
-            <option value="question">❓ Question</option>
-            <option value="decision">✅ Decision</option>
-            <option value="blocker">🚫 Blocker</option>
-          </select>
-          <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
-          <button id="send-message-btn" class="btn-send">Send</button>
-        </div>
-      </div>
-
-      <!-- ============================================ -->
-      <!-- NOTES / EMAIL TAB -->
-      <!-- ============================================ -->
-      <div id="notes-panel" class="content-panel">
-        <div class="panel-header">
-          <h2>📝 Notes & Email</h2>
-          <p class="panel-subtitle">Create notes and send via email (Formspree)</p>
-        </div>
-        
-        <div class="notes-workflow">
-          <!-- Note Input Area -->
-          <div class="note-input-section">
-            <textarea id="note-input" placeholder="Write your note here..." rows="6"></textarea>
-            <button id="add-note-btn" class="btn-primary">Add Note</button>
-          </div>
-          
-          <!-- Notes List -->
-          <div id="notes-list" class="notes-list">
-            <p class="notes-placeholder">No notes yet. Add one above to get started.</p>
-          </div>
-        </div>
-        
-        <!-- Hidden Formspree Form -->
-        <!-- IMPORTANT: Set FORMSPREE_ID environment variable on Render -->
-        <!-- Or replace {FORMSPREE_ID} with your actual Formspree form ID -->
-        <form id="formspree-form" action="https://formspree.io/f/{FORMSPREE_ID}" method="POST" style="display: none;">
-          <input type="email" name="_replyto" id="formspree-email">
-          <input type="text" name="subject" id="formspree-subject">
-          <textarea name="message" id="formspree-message"></textarea>
-        </form>
-        
-        <div id="email-status" class="email-status"></div>
-      </div>
-
+      <!-- Messages will be added here dynamically -->
     </main>
+
+    <!-- Quick Actions Bar (Above Input) -->
+    <div class="quick-actions">
+      <button class="quick-btn" data-action="reminder" title="Set Reminder">⏰</button>
+      <button class="quick-btn" data-action="todo" title="Add To-Do">✅</button>
+      <button class="quick-btn" data-action="note" title="Save Note">📝</button>
+      <button class="quick-btn" data-action="poll" title="Quick Poll">📊</button>
+      <button class="quick-btn" data-action="important" title="Important Message">⭐</button>
+    </div>
+
+    <!-- Message Input Bar -->
+    <footer class="message-input-container">
+      <button class="icon-btn" id="attach-btn" title="Attach">📎</button>
+      <input 
+        type="text" 
+        id="message-input" 
+        placeholder="Type a message..." 
+        autocomplete="off"
+      >
+      <button class="icon-btn send-btn" id="send-btn" title="Send">
+        <span class="send-icon">➤</span>
+      </button>
+    </footer>
+
   </div>
 
-  <!-- Session Summary Modal -->
-  <div id="summary-modal" class="modal hidden">
+  <!-- ============================================ -->
+  <!-- SIDE MENU -->
+  <!-- ============================================ -->
+  <div id="side-menu" class="side-menu hidden">
+    <div class="menu-header">
+      <h2>Menu</h2>
+      <button class="close-btn" id="close-menu">✕</button>
+    </div>
+    
+    <div class="menu-content">
+      <!-- User Info -->
+      <div class="menu-section">
+        <div class="user-info">
+          <div class="user-avatar">
+            <span id="user-avatar-text">H</span>
+          </div>
+          <div>
+            <div class="user-name" id="current-user-display">Hato</div>
+            <div class="user-status">Online</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="menu-section">
+        <h3>Session Stats</h3>
+        <div class="stat-item">
+          <span>Messages:</span>
+          <strong id="stat-messages">0</strong>
+        </div>
+        <div class="stat-item">
+          <span>To-Dos:</span>
+          <strong id="stat-todos">0</strong>
+        </div>
+        <div class="stat-item">
+          <span>Reminders:</span>
+          <strong id="stat-reminders">0</strong>
+        </div>
+      </div>
+
+      <!-- Saved Items -->
+      <div class="menu-section">
+        <h3>📌 Saved Items</h3>
+        <div id="saved-items-list" class="saved-items-list">
+          <p class="empty-state">No saved items yet</p>
+        </div>
+      </div>
+
+      <!-- Email Notes -->
+      <div class="menu-section">
+        <h3>📧 Email Notes</h3>
+        <button class="menu-action-btn" id="email-notes-btn">
+          Send Notes via Email
+        </button>
+        <div id="email-status-menu" class="email-status-small"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="menu-section">
+        <button class="menu-action-btn secondary" id="clear-chat-btn">
+          🗑 Clear Chat History
+        </button>
+        <button class="menu-action-btn danger" id="logout-btn">
+          🚪 Logout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- MODALS -->
+  <!-- ============================================ -->
+  
+  <!-- Reminder Modal -->
+  <div id="reminder-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>📊 Session Summary</h2>
-        <button class="modal-close">&times;</button>
+        <h3>⏰ Set Reminder</h3>
+        <button class="close-btn modal-close">✕</button>
       </div>
-      <div id="summary-content" class="modal-body">
-        <!-- Summary will be populated here -->
+      <div class="modal-body">
+        <input type="text" id="reminder-text" placeholder="What to remind?" class="modal-input">
+        <input type="datetime-local" id="reminder-time" class="modal-input">
       </div>
       <div class="modal-footer">
-        <button class="btn-primary modal-close">Close</button>
+        <button class="btn-secondary modal-close">Cancel</button>
+        <button class="btn-primary" id="save-reminder-btn">Save Reminder</button>
       </div>
+    </div>
+  </div>
+
+  <!-- To-Do Modal -->
+  <div id="todo-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>✅ Add To-Do</h3>
+        <button class="close-btn modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="todo-text" placeholder="What needs to be done?" class="modal-input">
+        <label class="checkbox-label">
+          <input type="checkbox" id="todo-urgent"> Mark as urgent
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary modal-close">Cancel</button>
+        <button class="btn-primary" id="save-todo-btn">Add To-Do</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Note Modal -->
+  <div id="note-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📝 Save Note</h3>
+        <button class="close-btn modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="note-text" placeholder="Write your note..." class="modal-textarea" rows="6"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary modal-close">Cancel</button>
+        <button class="btn-primary" id="save-note-btn">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Poll Modal -->
+  <div id="poll-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📊 Quick Poll</h3>
+        <button class="close-btn modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="poll-question" placeholder="Ask a question..." class="modal-input">
+        <input type="text" id="poll-option1" placeholder="Option 1" class="modal-input">
+        <input type="text" id="poll-option2" placeholder="Option 2" class="modal-input">
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary modal-close">Cancel</button>
+        <button class="btn-primary" id="send-poll-btn">Send Poll</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Modal -->
+  <div id="email-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📧 Send Notes via Email</h3>
+        <button class="close-btn modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description">Send all your saved notes and important messages to your email.</p>
+        
+        <label>Your Email Address:</label>
+        <input type="email" id="email-address" placeholder="your@email.com" class="modal-input">
+        
+        <label>Formspree Form ID:</label>
+        <input type="text" id="formspree-id" placeholder="e.g., xwkdjane" class="modal-input">
+        <small class="form-hint">Get your form ID from <a href="https://formspree.io" target="_blank">formspree.io</a></small>
+        
+        <div id="email-preview" class="email-preview">
+          <strong>Preview:</strong>
+          <div id="email-content-preview"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary modal-close">Cancel</button>
+        <button class="btn-primary" id="send-email-btn">Send Email</button>
+      </div>
+      <div id="email-status" class="email-status"></div>
     </div>
   </div>
 
