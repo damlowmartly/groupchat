@@ -262,13 +262,42 @@ function setupNavigationListeners() {
 // ============================================
 function initCanvas() {
   const canvas = elements.canvas;
-  canvas.width = 800;
-  canvas.height = 600;
   
-  state.canvasContext = canvas.getContext('2d');
-  state.canvasContext.lineWidth = 2;
-  state.canvasContext.lineCap = 'round';
-  state.canvasContext.strokeStyle = '#000';
+  // Make canvas responsive to screen size
+  function resizeCanvas() {
+    const container = canvas.parentElement;
+    const maxWidth = Math.min(container.clientWidth - 40, 800);
+    const maxHeight = Math.min(container.clientHeight - 40, 600);
+    
+    // Maintain aspect ratio
+    const aspectRatio = 4 / 3;
+    let width = maxWidth;
+    let height = width / aspectRatio;
+    
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * aspectRatio;
+    }
+    
+    canvas.width = width;
+    canvas.height = height;
+    
+    // Re-apply drawing context settings
+    state.canvasContext = canvas.getContext('2d');
+    state.canvasContext.lineWidth = 2;
+    state.canvasContext.lineCap = 'round';
+    state.canvasContext.strokeStyle = '#000';
+  }
+  
+  // Initial resize
+  resizeCanvas();
+  
+  // Resize on window resize (debounced)
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(resizeCanvas, 250);
+  });
 }
 
 function setupDrawingListeners() {
@@ -277,11 +306,36 @@ function setupDrawingListeners() {
   let lastX = 0;
   let lastY = 0;
   
-  canvas.addEventListener('mousedown', (e) => {
-    state.isDrawing = true;
+  // Helper function to get coordinates from mouse or touch event
+  function getCoordinates(e) {
     const rect = canvas.getBoundingClientRect();
-    lastX = e.clientX - rect.left;
-    lastY = e.clientY - rect.top;
+    let clientX, clientY;
+    
+    if (e.touches && e.touches.length > 0) {
+      // Touch event
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      // Mouse event
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  }
+  
+  // ============================================
+  // MOUSE EVENTS (Desktop)
+  // ============================================
+  canvas.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    state.isDrawing = true;
+    const coords = getCoordinates(e);
+    lastX = coords.x;
+    lastY = coords.y;
     
     sendWebSocketMessage({
       type: 'draw',
@@ -293,26 +347,25 @@ function setupDrawingListeners() {
   
   canvas.addEventListener('mousemove', (e) => {
     if (!state.isDrawing) return;
+    e.preventDefault();
     
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    drawLine(lastX, lastY, x, y);
+    const coords = getCoordinates(e);
+    drawLine(lastX, lastY, coords.x, coords.y);
     
     sendWebSocketMessage({
       type: 'draw',
       action: 'move',
-      x: x,
-      y: y
+      x: coords.x,
+      y: coords.y
     });
     
-    lastX = x;
-    lastY = y;
+    lastX = coords.x;
+    lastY = coords.y;
   });
   
-  canvas.addEventListener('mouseup', () => {
+  canvas.addEventListener('mouseup', (e) => {
     if (!state.isDrawing) return;
+    e.preventDefault();
     state.isDrawing = false;
     
     sendWebSocketMessage({
@@ -322,6 +375,57 @@ function setupDrawingListeners() {
   });
   
   canvas.addEventListener('mouseleave', () => {
+    state.isDrawing = false;
+  });
+  
+  // ============================================
+  // TOUCH EVENTS (Mobile)
+  // ============================================
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    state.isDrawing = true;
+    const coords = getCoordinates(e);
+    lastX = coords.x;
+    lastY = coords.y;
+    
+    sendWebSocketMessage({
+      type: 'draw',
+      action: 'start',
+      x: lastX,
+      y: lastY
+    });
+  });
+  
+  canvas.addEventListener('touchmove', (e) => {
+    if (!state.isDrawing) return;
+    e.preventDefault();
+    
+    const coords = getCoordinates(e);
+    drawLine(lastX, lastY, coords.x, coords.y);
+    
+    sendWebSocketMessage({
+      type: 'draw',
+      action: 'move',
+      x: coords.x,
+      y: coords.y
+    });
+    
+    lastX = coords.x;
+    lastY = coords.y;
+  });
+  
+  canvas.addEventListener('touchend', (e) => {
+    if (!state.isDrawing) return;
+    e.preventDefault();
+    state.isDrawing = false;
+    
+    sendWebSocketMessage({
+      type: 'draw',
+      action: 'end'
+    });
+  });
+  
+  canvas.addEventListener('touchcancel', () => {
     state.isDrawing = false;
   });
   
