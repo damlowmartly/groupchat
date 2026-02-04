@@ -1,20 +1,16 @@
 // ============================================
-// HATO & JBRO COLLABORATION - CLIENT SCRIPT
+// HATO & JBRO MESSENGER - CLIENT SCRIPT
 // ============================================
 
-// ============================================
-// STATE MANAGEMENT
-// ============================================
 const state = {
   currentUser: null,
   ws: null,
-  isDrawing: false,
-  canvasContext: null
+  messages: [],
+  savedItems: [],
+  reminders: [],
+  todos: []
 };
 
-// ============================================
-// DOM ELEMENTS
-// ============================================
 const elements = {
   // Login
   loginScreen: document.getElementById('login-screen'),
@@ -23,78 +19,79 @@ const elements = {
   passwordInput: document.getElementById('password'),
   loginError: document.getElementById('login-error'),
   
-  // Workspace
-  workspace: document.getElementById('workspace'),
-  currentUserDisplay: document.getElementById('current-user'),
-  onlineUsers: document.getElementById('online-users'),
-  connectionStatus: document.getElementById('connection-status'),
-  
-  // Navigation
-  navTabs: document.querySelectorAll('.nav-tab'),
-  contentPanels: document.querySelectorAll('.content-panel'),
-  
-  // Draw
-  canvas: document.getElementById('drawing-canvas'),
-  clearCanvasBtn: document.getElementById('clear-canvas-btn'),
-  canvasLabelInput: document.getElementById('canvas-label'),
-  canvasLabelDisplay: document.getElementById('canvas-label-display'),
-  
-  // Messages
-  messagesContainer: document.getElementById('messages-container'),
+  // Messenger
+  messenger: document.getElementById('messenger'),
+  messagesArea: document.getElementById('messages-area'),
   messageInput: document.getElementById('message-input'),
-  messageTypeSelect: document.getElementById('message-type'),
-  sendMessageBtn: document.getElementById('send-message-btn'),
+  sendBtn: document.getElementById('send-btn'),
   
-  // Notes
-  noteInput: document.getElementById('note-input'),
-  addNoteBtn: document.getElementById('add-note-btn'),
-  notesList: document.getElementById('notes-list'),
-  emailStatus: document.getElementById('email-status'),
+  // Header
+  statusDot: document.getElementById('status-dot'),
+  partnerName: document.getElementById('partner-name'),
+  menuBtn: document.getElementById('menu-btn'),
   
-  // Session
-  endSessionBtn: document.getElementById('end-session-btn'),
+  // Side Menu
+  sideMenu: document.getElementById('side-menu'),
+  closeMenuBtn: document.getElementById('close-menu'),
+  currentUserDisplay: document.getElementById('current-user-display'),
+  userAvatarText: document.getElementById('user-avatar-text'),
+  statMessages: document.getElementById('stat-messages'),
+  statTodos: document.getElementById('stat-todos'),
+  statReminders: document.getElementById('stat-reminders'),
+  savedItemsList: document.getElementById('saved-items-list'),
+  emailNotesBtn: document.getElementById('email-notes-btn'),
+  clearChatBtn: document.getElementById('clear-chat-btn'),
   logoutBtn: document.getElementById('logout-btn'),
-  summaryModal: document.getElementById('summary-modal'),
-  summaryContent: document.getElementById('summary-content')
+  
+  // Quick Actions
+  quickBtns: document.querySelectorAll('.quick-btn'),
+  
+  // Modals
+  reminderModal: document.getElementById('reminder-modal'),
+  todoModal: document.getElementById('todo-modal'),
+  noteModal: document.getElementById('note-modal'),
+  pollModal: document.getElementById('poll-modal'),
+  emailModal: document.getElementById('email-modal')
 };
 
 // ============================================
 // INITIALIZATION
 // ============================================
 function init() {
-  // Check if already logged in
   const savedUser = sessionStorage.getItem('currentUser');
   if (savedUser) {
     state.currentUser = savedUser;
-    showWorkspace();
+    showMessenger();
     initWebSocket();
   }
   
-  // Setup event listeners
   setupLoginListeners();
-  setupNavigationListeners();
-  setupDrawingListeners();
-  setupMessageListeners();
-  setupNotesListeners();
-  setupSessionListeners();
+  setupMessengerListeners();
+  setupMenuListeners();
+  setupQuickActionsListeners();
+  setupModalListeners();
+  
+  // Set current date
+  const today = new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', month: 'short', day: 'numeric' 
+  });
+  document.getElementById('current-date').textContent = today;
 }
 
 // ============================================
-// LOGIN FLOW
+// LOGIN
 // ============================================
 function setupLoginListeners() {
   elements.loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    
     const username = elements.usernameSelect.value;
     const password = elements.passwordInput.value;
     
-    // Simple authentication (both users share same password)
     if ((username === 'Hato' || username === 'Jbro') && password === 'skyf123') {
       state.currentUser = username;
       sessionStorage.setItem('currentUser', username);
       elements.loginError.textContent = '';
-      showWorkspace();
+      showMessenger();
       initWebSocket();
     } else {
       elements.loginError.textContent = '❌ Invalid credentials';
@@ -102,20 +99,17 @@ function setupLoginListeners() {
   });
 }
 
-function showWorkspace() {
+function showMessenger() {
   elements.loginScreen.classList.add('hidden');
-  elements.workspace.classList.remove('hidden');
-  elements.currentUserDisplay.textContent = `Logged in as ${state.currentUser}`;
-  
-  // Initialize canvas
-  initCanvas();
+  elements.messenger.classList.remove('hidden');
+  elements.currentUserDisplay.textContent = state.currentUser;
+  elements.userAvatarText.textContent = state.currentUser.charAt(0);
 }
 
 // ============================================
-// WEBSOCKET CONNECTION
+// WEBSOCKET
 // ============================================
 function initWebSocket() {
-  // Determine WebSocket URL based on environment
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}`;
   
@@ -124,12 +118,7 @@ function initWebSocket() {
   state.ws.onopen = () => {
     console.log('WebSocket connected');
     updateConnectionStatus(true);
-    
-    // Send login message
-    sendWebSocketMessage({
-      type: 'login',
-      user: state.currentUser
-    });
+    sendWS({ type: 'login', user: state.currentUser });
   };
   
   state.ws.onmessage = (event) => {
@@ -140,12 +129,8 @@ function initWebSocket() {
   state.ws.onclose = () => {
     console.log('WebSocket disconnected');
     updateConnectionStatus(false);
-    
-    // Attempt to reconnect after 3 seconds
     setTimeout(() => {
-      if (state.currentUser) {
-        initWebSocket();
-      }
+      if (state.currentUser) initWebSocket();
     }, 3000);
   };
   
@@ -155,7 +140,7 @@ function initWebSocket() {
   };
 }
 
-function sendWebSocketMessage(data) {
+function sendWS(data) {
   if (state.ws && state.ws.readyState === WebSocket.OPEN) {
     state.ws.send(JSON.stringify(data));
   }
@@ -164,305 +149,47 @@ function sendWebSocketMessage(data) {
 function handleWebSocketMessage(data) {
   switch (data.type) {
     case 'session_state':
-      // Restore session state for new user
-      data.messages.forEach(msg => addMessageToUI(msg));
-      data.drawingEvents.forEach(event => {
-        if (event.action === 'move' && state.canvasContext) {
-          drawLine(event.x, event.y, event.x, event.y);
-        }
-      });
-      data.notes.forEach(note => addNoteToUI(note));
+      data.messages.forEach(msg => addMessageToUI(msg, false));
       break;
-      
     case 'online_status':
-      updateOnlineUsers(data.users);
+      updateOnlineStatus(data.users);
       break;
-      
     case 'chat':
     case 'system':
-      addMessageToUI(data);
-      break;
-      
-    case 'draw':
-      if (data.user !== state.currentUser) {
-        if (data.action === 'move') {
-          drawLine(data.x, data.y, data.x, data.y);
-        }
-      }
-      break;
-      
-    case 'clear_canvas':
-      clearCanvas();
-      break;
-      
-    case 'note_added':
-      addNoteToUI(data.note);
-      break;
-      
-    case 'note_deleted':
-      removeNoteFromUI(data.noteId);
-      break;
-      
-    case 'session_summary':
-      showSessionSummary(data);
+    case 'reminder':
+    case 'todo':
+    case 'note':
+    case 'poll':
+    case 'important':
+      addMessageToUI(data, true);
       break;
   }
 }
 
 function updateConnectionStatus(connected) {
-  const statusDot = elements.connectionStatus.querySelector('.status-dot');
-  const statusText = elements.connectionStatus.querySelector('.status-text');
-  
   if (connected) {
-    statusDot.classList.add('connected');
-    statusDot.classList.remove('disconnected');
-    statusText.textContent = 'Connected';
+    elements.statusDot.classList.add('online');
   } else {
-    statusDot.classList.remove('connected');
-    statusDot.classList.add('disconnected');
-    statusText.textContent = 'Disconnected';
+    elements.statusDot.classList.remove('online');
   }
 }
 
-function updateOnlineUsers(users) {
-  elements.onlineUsers.innerHTML = '';
-  users.forEach(user => {
-    const badge = document.createElement('div');
-    badge.className = 'user-badge';
-    badge.textContent = user;
-    elements.onlineUsers.appendChild(badge);
-  });
-}
-
-// ============================================
-// NAVIGATION
-// ============================================
-function setupNavigationListeners() {
-  elements.navTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const targetTab = tab.dataset.tab;
-      
-      // Update active tab
-      elements.navTabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      
-      // Show corresponding panel
-      elements.contentPanels.forEach(panel => {
-        panel.classList.remove('active');
-        if (panel.id === `${targetTab}-panel`) {
-          panel.classList.add('active');
-        }
-      });
-    });
-  });
-}
-
-// ============================================
-// DRAWING CANVAS
-// ============================================
-function initCanvas() {
-  const canvas = elements.canvas;
-  
-  // Make canvas responsive to screen size
-  function resizeCanvas() {
-    const container = canvas.parentElement;
-    const maxWidth = Math.min(container.clientWidth - 40, 800);
-    const maxHeight = Math.min(container.clientHeight - 40, 600);
-    
-    // Maintain aspect ratio
-    const aspectRatio = 4 / 3;
-    let width = maxWidth;
-    let height = width / aspectRatio;
-    
-    if (height > maxHeight) {
-      height = maxHeight;
-      width = height * aspectRatio;
-    }
-    
-    canvas.width = width;
-    canvas.height = height;
-    
-    // Re-apply drawing context settings
-    state.canvasContext = canvas.getContext('2d');
-    state.canvasContext.lineWidth = 2;
-    state.canvasContext.lineCap = 'round';
-    state.canvasContext.strokeStyle = '#000';
+function updateOnlineStatus(users) {
+  const partner = users.find(u => u !== state.currentUser);
+  if (partner) {
+    elements.partnerName.textContent = partner;
+    elements.statusDot.classList.add('online');
+  } else {
+    elements.partnerName.textContent = 'Offline';
+    elements.statusDot.classList.remove('online');
   }
-  
-  // Initial resize
-  resizeCanvas();
-  
-  // Resize on window resize (debounced)
-  let resizeTimeout;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(resizeCanvas, 250);
-  });
-}
-
-function setupDrawingListeners() {
-  const canvas = elements.canvas;
-  
-  let lastX = 0;
-  let lastY = 0;
-  
-  // Helper function to get coordinates from mouse or touch event
-  function getCoordinates(e) {
-    const rect = canvas.getBoundingClientRect();
-    let clientX, clientY;
-    
-    if (e.touches && e.touches.length > 0) {
-      // Touch event
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      // Mouse event
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    };
-  }
-  
-  // ============================================
-  // MOUSE EVENTS (Desktop)
-  // ============================================
-  canvas.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    state.isDrawing = true;
-    const coords = getCoordinates(e);
-    lastX = coords.x;
-    lastY = coords.y;
-    
-    sendWebSocketMessage({
-      type: 'draw',
-      action: 'start',
-      x: lastX,
-      y: lastY
-    });
-  });
-  
-  canvas.addEventListener('mousemove', (e) => {
-    if (!state.isDrawing) return;
-    e.preventDefault();
-    
-    const coords = getCoordinates(e);
-    drawLine(lastX, lastY, coords.x, coords.y);
-    
-    sendWebSocketMessage({
-      type: 'draw',
-      action: 'move',
-      x: coords.x,
-      y: coords.y
-    });
-    
-    lastX = coords.x;
-    lastY = coords.y;
-  });
-  
-  canvas.addEventListener('mouseup', (e) => {
-    if (!state.isDrawing) return;
-    e.preventDefault();
-    state.isDrawing = false;
-    
-    sendWebSocketMessage({
-      type: 'draw',
-      action: 'end'
-    });
-  });
-  
-  canvas.addEventListener('mouseleave', () => {
-    state.isDrawing = false;
-  });
-  
-  // ============================================
-  // TOUCH EVENTS (Mobile)
-  // ============================================
-  canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    state.isDrawing = true;
-    const coords = getCoordinates(e);
-    lastX = coords.x;
-    lastY = coords.y;
-    
-    sendWebSocketMessage({
-      type: 'draw',
-      action: 'start',
-      x: lastX,
-      y: lastY
-    });
-  });
-  
-  canvas.addEventListener('touchmove', (e) => {
-    if (!state.isDrawing) return;
-    e.preventDefault();
-    
-    const coords = getCoordinates(e);
-    drawLine(lastX, lastY, coords.x, coords.y);
-    
-    sendWebSocketMessage({
-      type: 'draw',
-      action: 'move',
-      x: coords.x,
-      y: coords.y
-    });
-    
-    lastX = coords.x;
-    lastY = coords.y;
-  });
-  
-  canvas.addEventListener('touchend', (e) => {
-    if (!state.isDrawing) return;
-    e.preventDefault();
-    state.isDrawing = false;
-    
-    sendWebSocketMessage({
-      type: 'draw',
-      action: 'end'
-    });
-  });
-  
-  canvas.addEventListener('touchcancel', () => {
-    state.isDrawing = false;
-  });
-  
-  // Clear canvas button
-  elements.clearCanvasBtn.addEventListener('click', () => {
-    if (confirm('Clear canvas for both users?')) {
-      sendWebSocketMessage({
-        type: 'clear_canvas'
-      });
-    }
-  });
-  
-  // Canvas label
-  elements.canvasLabelInput.addEventListener('input', (e) => {
-    elements.canvasLabelDisplay.textContent = e.target.value;
-    elements.canvasLabelDisplay.style.display = e.target.value ? 'block' : 'none';
-  });
-}
-
-function drawLine(x1, y1, x2, y2) {
-  const ctx = state.canvasContext;
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-}
-
-function clearCanvas() {
-  state.canvasContext.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
 }
 
 // ============================================
-// MESSAGES (FB/Instagram Style)
+// MESSAGING
 // ============================================
-function setupMessageListeners() {
-  elements.sendMessageBtn.addEventListener('click', sendMessage);
-  
+function setupMessengerListeners() {
+  elements.sendBtn.addEventListener('click', sendMessage);
   elements.messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -475,244 +202,75 @@ function sendMessage() {
   const content = elements.messageInput.value.trim();
   if (!content) return;
   
-  const messageType = elements.messageTypeSelect.value;
-  
-  sendWebSocketMessage({
+  sendWS({
     type: 'chat',
     content: content,
-    messageType: messageType
+    user: state.currentUser,
+    timestamp: new Date().toISOString()
   });
   
   elements.messageInput.value = '';
 }
 
-function addMessageToUI(message) {
+function addMessageToUI(message, shouldScroll = true) {
   if (message.type === 'system') {
-    const systemDiv = document.createElement('div');
-    systemDiv.className = 'system-message';
-    systemDiv.textContent = message.content;
-    elements.messagesContainer.appendChild(systemDiv);
+    const div = document.createElement('div');
+    div.className = 'system-message';
+    div.textContent = message.content;
+    elements.messagesArea.appendChild(div);
   } else {
-    const messageDiv = document.createElement('div');
-    const isCurrentUser = message.user === state.currentUser;
-    messageDiv.className = `message-bubble ${isCurrentUser ? 'current-user' : 'other-user'}`;
+    const isSent = message.user === state.currentUser;
+    const div = document.createElement('div');
+    div.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
     
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'message-header';
-    headerDiv.textContent = message.user;
-    
-    const contentDiv = document.createElement('div');
-    contentDiv.className = `message-content ${message.messageType || 'chat'}`;
-    contentDiv.textContent = message.content;
-    
-    const timestampDiv = document.createElement('div');
-    timestampDiv.className = 'message-timestamp';
-    timestampDiv.textContent = formatTimestamp(message.timestamp);
-    
-    if (!isCurrentUser) {
-      messageDiv.appendChild(headerDiv);
+    if (!isSent) {
+      const sender = document.createElement('div');
+      sender.className = 'message-sender';
+      sender.textContent = message.user;
+      div.appendChild(sender);
     }
-    messageDiv.appendChild(contentDiv);
-    messageDiv.appendChild(timestampDiv);
     
-    elements.messagesContainer.appendChild(messageDiv);
-  }
-  
-  // Smooth scroll to bottom
-  elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
-}
-
-// ============================================
-// NOTES & EMAIL (Formspree Integration)
-// ============================================
-function setupNotesListeners() {
-  elements.addNoteBtn.addEventListener('click', () => {
-    const content = elements.noteInput.value.trim();
-    if (!content) return;
+    const content = document.createElement('div');
+    content.className = `message-content ${message.type || 'chat'}`;
     
-    sendWebSocketMessage({
-      type: 'add_note',
-      content: content
-    });
-    
-    elements.noteInput.value = '';
-  });
-}
-
-function addNoteToUI(note) {
-  // Remove placeholder if exists
-  const placeholder = elements.notesList.querySelector('.notes-placeholder');
-  if (placeholder) {
-    placeholder.remove();
-  }
-  
-  const noteCard = document.createElement('div');
-  noteCard.className = 'note-card';
-  noteCard.dataset.noteId = note.id;
-  
-  noteCard.innerHTML = `
-    <div class="note-header">
-      <div class="note-meta">
-        <strong>${note.user}</strong> • ${formatTimestamp(note.timestamp)}
-      </div>
-      <div class="note-actions">
-        <button class="btn-icon email" onclick="sendNoteViaEmail(${note.id})" title="Send via Email">📩</button>
-        <button class="btn-icon delete" onclick="deleteNote(${note.id})" title="Delete">🗑</button>
-      </div>
-    </div>
-    <div class="note-content">${escapeHtml(note.content)}</div>
-  `;
-  
-  elements.notesList.appendChild(noteCard);
-}
-
-function removeNoteFromUI(noteId) {
-  const noteCard = elements.notesList.querySelector(`[data-note-id="${noteId}"]`);
-  if (noteCard) {
-    noteCard.remove();
-  }
-  
-  // Add placeholder if no notes remain
-  if (elements.notesList.children.length === 0) {
-    elements.notesList.innerHTML = '<p class="notes-placeholder">No notes yet. Add one above to get started.</p>';
-  }
-}
-
-// ============================================
-// FORMSPREE EMAIL INTEGRATION
-// Note: Formspree form action is in index.html
-// Set FORMSPREE_ID environment variable on Render
-// Or manually replace {FORMSPREE_ID} in HTML
-// ============================================
-window.sendNoteViaEmail = async function(noteId) {
-  const noteCard = elements.notesList.querySelector(`[data-note-id="${noteId}"]`);
-  if (!noteCard) return;
-  
-  const noteContent = noteCard.querySelector('.note-content').textContent;
-  const noteMeta = noteCard.querySelector('.note-meta').textContent;
-  
-  // Get Formspree form
-  const formspreeForm = document.getElementById('formspree-form');
-  const formAction = formspreeForm.getAttribute('action');
-  
-  // Check if Formspree ID is set
-  if (formAction.includes('{FORMSPREE_ID}')) {
-    showEmailStatus('error', '❌ Formspree ID not configured. Set FORMSPREE_ID environment variable on Render.');
-    return;
-  }
-  
-  // Prepare email data
-  const emailData = {
-    _replyto: 'noreply@collaboration.app', // Can be customized
-    subject: `Note from ${state.currentUser} - Hato & Jbro Workspace`,
-    message: `${noteMeta}\n\n${noteContent}`
-  };
-  
-  try {
-    showEmailStatus('info', '📧 Sending email...');
-    
-    const response = await fetch(formAction, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(emailData)
-    });
-    
-    if (response.ok) {
-      showEmailStatus('success', '✅ Email sent successfully!');
+    if (message.type === 'poll') {
+      content.innerHTML = createPollHTML(message);
     } else {
-      const error = await response.json();
-      showEmailStatus('error', `❌ Failed to send email: ${error.error || 'Unknown error'}`);
+      content.textContent = message.content;
     }
-  } catch (error) {
-    showEmailStatus('error', `❌ Error sending email: ${error.message}`);
+    
+    div.appendChild(content);
+    
+    const time = document.createElement('div');
+    time.className = 'message-time';
+    time.textContent = formatTime(message.timestamp);
+    div.appendChild(time);
+    
+    elements.messagesArea.appendChild(div);
+    state.messages.push(message);
   }
-};
-
-window.deleteNote = function(noteId) {
-  if (confirm('Delete this note?')) {
-    sendWebSocketMessage({
-      type: 'delete_note',
-      noteId: noteId
-    });
-  }
-};
-
-function showEmailStatus(type, message) {
-  elements.emailStatus.className = `email-status ${type}`;
-  elements.emailStatus.textContent = message;
   
-  // Auto-hide after 5 seconds
-  setTimeout(() => {
-    elements.emailStatus.className = 'email-status';
-    elements.emailStatus.textContent = '';
-  }, 5000);
+  if (shouldScroll) {
+    elements.messagesArea.scrollTop = elements.messagesArea.scrollHeight;
+  }
+  
+  updateStats();
 }
 
-// ============================================
-// SESSION MANAGEMENT
-// ============================================
-function setupSessionListeners() {
-  elements.endSessionBtn.addEventListener('click', () => {
-    sendWebSocketMessage({
-      type: 'get_summary'
-    });
-  });
-  
-  elements.logoutBtn.addEventListener('click', () => {
-    if (confirm('Are you sure you want to logout?')) {
-      sessionStorage.removeItem('currentUser');
-      if (state.ws) {
-        state.ws.close();
-      }
-      window.location.reload();
-    }
-  });
-  
-  // Modal close buttons
-  document.querySelectorAll('.modal-close').forEach(btn => {
-    btn.addEventListener('click', () => {
-      elements.summaryModal.classList.add('hidden');
-    });
-  });
-}
-
-function showSessionSummary(data) {
-  const summaryHTML = `
-    <div class="summary-stat">
-      <strong>Total Messages:</strong> ${data.totalMessages}
-    </div>
-    <div class="summary-stat">
-      <strong>Drawing Events:</strong> ${data.totalDrawEvents}
-    </div>
-    <div class="summary-stat">
-      <strong>Notes Created:</strong> ${data.totalNotes}
-    </div>
-    <div class="summary-stat">
-      <strong>Participants:</strong> ${data.participants.join(', ')}
-    </div>
-    <div class="summary-stat">
-      <strong>Recent Messages:</strong>
-      <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
-        ${data.messages.slice(-5).map(msg => 
-          msg.type === 'chat' 
-            ? `<li><strong>${msg.user}:</strong> ${escapeHtml(msg.content)}</li>`
-            : `<li><em>${msg.content}</em></li>`
-        ).join('')}
-      </ul>
-    </div>
+function createPollHTML(message) {
+  const poll = JSON.parse(message.content);
+  return `
+    <div class="poll-question">${poll.question}</div>
+    <div class="poll-option" onclick="votePoll('${poll.id}', 0)">${poll.options[0]}</div>
+    <div class="poll-option" onclick="votePoll('${poll.id}', 1)">${poll.options[1]}</div>
   `;
-  
-  elements.summaryContent.innerHTML = summaryHTML;
-  elements.summaryModal.classList.remove('hidden');
 }
 
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
-function formatTimestamp(isoString) {
+window.votePoll = function(pollId, option) {
+  alert(`You voted for option ${option + 1}!`);
+};
+
+function formatTime(isoString) {
   const date = new Date(isoString);
   const now = new Date();
   const diffMs = now - date;
@@ -729,13 +287,325 @@ function formatTimestamp(isoString) {
   return `${displayHours}:${minutes} ${ampm}`;
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+// ============================================
+// MENU
+// ============================================
+function setupMenuListeners() {
+  elements.menuBtn.addEventListener('click', () => {
+    elements.sideMenu.classList.add('active');
+  });
+  
+  elements.closeMenuBtn.addEventListener('click', () => {
+    elements.sideMenu.classList.remove('active');
+  });
+  
+  elements.emailNotesBtn.addEventListener('click', () => {
+    elements.emailModal.classList.remove('hidden');
+    updateEmailPreview();
+  });
+  
+  elements.clearChatBtn.addEventListener('click', () => {
+    if (confirm('Clear all messages for both users?')) {
+      sendWS({ type: 'clear_chat' });
+      elements.messagesArea.innerHTML = `
+        <div class="date-divider">
+          <span id="current-date">Today</span>
+        </div>
+      `;
+      state.messages = [];
+      updateStats();
+    }
+  });
+  
+  elements.logoutBtn.addEventListener('click', () => {
+    if (confirm('Are you sure you want to logout?')) {
+      sessionStorage.removeItem('currentUser');
+      if (state.ws) state.ws.close();
+      window.location.reload();
+    }
+  });
+}
+
+function updateStats() {
+  const messageCount = state.messages.filter(m => m.type === 'chat').length;
+  const todoCount = state.todos.length;
+  const reminderCount = state.reminders.length;
+  
+  elements.statMessages.textContent = messageCount;
+  elements.statTodos.textContent = todoCount;
+  elements.statReminders.textContent = reminderCount;
 }
 
 // ============================================
-// START APPLICATION
+// QUICK ACTIONS
+// ============================================
+function setupQuickActionsListeners() {
+  elements.quickBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      handleQuickAction(action);
+    });
+  });
+}
+
+function handleQuickAction(action) {
+  switch (action) {
+    case 'reminder':
+      elements.reminderModal.classList.remove('hidden');
+      break;
+    case 'todo':
+      elements.todoModal.classList.remove('hidden');
+      break;
+    case 'note':
+      elements.noteModal.classList.remove('hidden');
+      break;
+    case 'poll':
+      elements.pollModal.classList.remove('hidden');
+      break;
+    case 'important':
+      const content = prompt('Important message:');
+      if (content) {
+        sendWS({
+          type: 'important',
+          content: content,
+          user: state.currentUser,
+          timestamp: new Date().toISOString()
+        });
+      }
+      break;
+  }
+}
+
+// ============================================
+// MODALS
+// ============================================
+function setupModalListeners() {
+  // Close modal buttons
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.target.closest('.modal').classList.add('hidden');
+    });
+  });
+  
+  // Reminder
+  document.getElementById('save-reminder-btn').addEventListener('click', () => {
+    const text = document.getElementById('reminder-text').value.trim();
+    const time = document.getElementById('reminder-time').value;
+    
+    if (text && time) {
+      const reminder = { text, time, id: Date.now() };
+      state.reminders.push(reminder);
+      
+      sendWS({
+        type: 'reminder',
+        content: `⏰ Reminder: ${text} at ${new Date(time).toLocaleString()}`,
+        user: state.currentUser,
+        timestamp: new Date().toISOString()
+      });
+      
+      elements.reminderModal.classList.add('hidden');
+      document.getElementById('reminder-text').value = '';
+      document.getElementById('reminder-time').value = '';
+      updateStats();
+    }
+  });
+  
+  // Todo
+  document.getElementById('save-todo-btn').addEventListener('click', () => {
+    const text = document.getElementById('todo-text').value.trim();
+    const urgent = document.getElementById('todo-urgent').checked;
+    
+    if (text) {
+      const todo = { text, urgent, id: Date.now() };
+      state.todos.push(todo);
+      
+      const prefix = urgent ? '🚨 URGENT' : '✅';
+      sendWS({
+        type: 'todo',
+        content: `${prefix} To-Do: ${text}`,
+        user: state.currentUser,
+        timestamp: new Date().toISOString()
+      });
+      
+      elements.todoModal.classList.add('hidden');
+      document.getElementById('todo-text').value = '';
+      document.getElementById('todo-urgent').checked = false;
+      updateStats();
+    }
+  });
+  
+  // Note
+  document.getElementById('save-note-btn').addEventListener('click', () => {
+    const text = document.getElementById('note-text').value.trim();
+    
+    if (text) {
+      const note = { text, id: Date.now(), user: state.currentUser };
+      state.savedItems.push(note);
+      
+      sendWS({
+        type: 'note',
+        content: `📝 Note saved: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`,
+        user: state.currentUser,
+        timestamp: new Date().toISOString()
+      });
+      
+      addSavedItem(note);
+      elements.noteModal.classList.add('hidden');
+      document.getElementById('note-text').value = '';
+    }
+  });
+  
+  // Poll
+  document.getElementById('send-poll-btn').addEventListener('click', () => {
+    const question = document.getElementById('poll-question').value.trim();
+    const option1 = document.getElementById('poll-option1').value.trim();
+    const option2 = document.getElementById('poll-option2').value.trim();
+    
+    if (question && option1 && option2) {
+      const poll = {
+        id: Date.now(),
+        question,
+        options: [option1, option2]
+      };
+      
+      sendWS({
+        type: 'poll',
+        content: JSON.stringify(poll),
+        user: state.currentUser,
+        timestamp: new Date().toISOString()
+      });
+      
+      elements.pollModal.classList.add('hidden');
+      document.getElementById('poll-question').value = '';
+      document.getElementById('poll-option1').value = '';
+      document.getElementById('poll-option2').value = '';
+    }
+  });
+  
+  // Email
+  document.getElementById('send-email-btn').addEventListener('click', sendEmail);
+}
+
+function addSavedItem(note) {
+  // Remove placeholder
+  const placeholder = elements.savedItemsList.querySelector('.empty-state');
+  if (placeholder) placeholder.remove();
+  
+  const div = document.createElement('div');
+  div.className = 'saved-item';
+  div.innerHTML = `
+    ${note.text}
+    <button class="saved-item-delete" onclick="deleteSavedItem(${note.id})">✕</button>
+  `;
+  elements.savedItemsList.appendChild(div);
+}
+
+window.deleteSavedItem = function(id) {
+  state.savedItems = state.savedItems.filter(item => item.id !== id);
+  elements.savedItemsList.querySelector(`[onclick="deleteSavedItem(${id})"]`).parentElement.remove();
+  
+  if (state.savedItems.length === 0) {
+    elements.savedItemsList.innerHTML = '<p class="empty-state">No saved items yet</p>';
+  }
+};
+
+// ============================================
+// EMAIL FUNCTIONALITY
+// ============================================
+function updateEmailPreview() {
+  let preview = `=== HATO & JBRO MESSENGER ===\n`;
+  preview += `Date: ${new Date().toLocaleDateString()}\n\n`;
+  
+  if (state.savedItems.length > 0) {
+    preview += `📝 SAVED NOTES:\n`;
+    state.savedItems.forEach((item, i) => {
+      preview += `${i + 1}. ${item.text}\n`;
+    });
+    preview += `\n`;
+  }
+  
+  if (state.todos.length > 0) {
+    preview += `✅ TO-DO LIST:\n`;
+    state.todos.forEach((item, i) => {
+      const prefix = item.urgent ? '🚨' : '•';
+      preview += `${prefix} ${item.text}\n`;
+    });
+    preview += `\n`;
+  }
+  
+  if (state.reminders.length > 0) {
+    preview += `⏰ REMINDERS:\n`;
+    state.reminders.forEach((item, i) => {
+      preview += `• ${item.text} - ${item.time}\n`;
+    });
+    preview += `\n`;
+  }
+  
+  const recentMessages = state.messages.filter(m => m.type === 'chat').slice(-10);
+  if (recentMessages.length > 0) {
+    preview += `💬 RECENT MESSAGES:\n`;
+    recentMessages.forEach(msg => {
+      preview += `[${msg.user}] ${msg.content}\n`;
+    });
+  }
+  
+  document.getElementById('email-content-preview').textContent = preview;
+}
+
+async function sendEmail() {
+  const email = document.getElementById('email-address').value.trim();
+  const formspreeId = document.getElementById('formspree-id').value.trim();
+  const statusEl = document.getElementById('email-status');
+  const menuStatusEl = document.getElementById('email-status-menu');
+  
+  if (!email || !formspreeId) {
+    statusEl.className = 'email-status error';
+    statusEl.textContent = '❌ Please fill in both email and Formspree ID';
+    return;
+  }
+  
+  const preview = document.getElementById('email-content-preview').textContent;
+  
+  statusEl.className = 'email-status info';
+  statusEl.textContent = '📧 Sending email...';
+  
+  try {
+    const response = await fetch(`https://formspree.io/f/${formspreeId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        _replyto: email,
+        subject: `Hato & Jbro Messenger Notes - ${new Date().toLocaleDateString()}`,
+        message: preview
+      })
+    });
+    
+    if (response.ok) {
+      statusEl.className = 'email-status success';
+      statusEl.textContent = '✅ Email sent successfully!';
+      menuStatusEl.className = 'email-status-small success';
+      menuStatusEl.textContent = '✅ Last email sent successfully';
+      
+      setTimeout(() => {
+        elements.emailModal.classList.add('hidden');
+        statusEl.className = 'email-status';
+        statusEl.textContent = '';
+      }, 2000);
+    } else {
+      const error = await response.json();
+      statusEl.className = 'email-status error';
+      statusEl.textContent = `❌ Failed: ${error.error || 'Unknown error'}`;
+    }
+  } catch (error) {
+    statusEl.className = 'email-status error';
+    statusEl.textContent = `❌ Error: ${error.message}`;
+  }
+}
+
+// ============================================
+// START APP
 // ============================================
 document.addEventListener('DOMContentLoaded', init);
