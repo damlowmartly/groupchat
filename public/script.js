@@ -1,5 +1,5 @@
 // ============================================
-// HATO & JBRO MESSENGER - CLIENT SCRIPT
+// HATO & JBRO MESSENGER - ENHANCED VERSION
 // ============================================
 
 const state = {
@@ -8,7 +8,8 @@ const state = {
   messages: [],
   savedItems: [],
   reminders: [],
-  todos: []
+  todos: [],
+  polls: {} // Store poll data with votes
 };
 
 const elements = {
@@ -32,6 +33,7 @@ const elements = {
   
   // Side Menu
   sideMenu: document.getElementById('side-menu'),
+  menuOverlay: document.getElementById('menu-overlay'),
   closeMenuBtn: document.getElementById('close-menu'),
   currentUserDisplay: document.getElementById('current-user-display'),
   userAvatarText: document.getElementById('user-avatar-text'),
@@ -149,10 +151,23 @@ function sendWS(data) {
 function handleWebSocketMessage(data) {
   switch (data.type) {
     case 'session_state':
-      data.messages.forEach(msg => addMessageToUI(msg, false));
+      data.messages.forEach(msg => {
+        addMessageToUI(msg, false);
+        // Restore poll state
+        if (msg.type === 'poll') {
+          const pollData = JSON.parse(msg.pollData);
+          state.polls[pollData.id] = pollData;
+        }
+      });
       break;
     case 'online_status':
       updateOnlineStatus(data.users);
+      break;
+    case 'poll_vote':
+      updatePollVote(data.pollId, data.option, data.user);
+      break;
+    case 'reminder_to_note':
+      handleReminderConversion(data);
       break;
     case 'chat':
     case 'system':
@@ -196,6 +211,20 @@ function setupMessengerListeners() {
       sendMessage();
     }
   });
+  
+  // Mobile keyboard handling - scroll to bottom when keyboard opens
+  elements.messageInput.addEventListener('focus', () => {
+    setTimeout(() => {
+      elements.messagesArea.scrollTop = elements.messagesArea.scrollHeight;
+      // Ensure input container is visible
+      elements.messageInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 300);
+  });
+  
+  // Prevent body scroll when typing on mobile
+  elements.messageInput.addEventListener('touchstart', (e) => {
+    e.stopPropagation();
+  });
 }
 
 function sendMessage() {
@@ -222,6 +251,7 @@ function addMessageToUI(message, shouldScroll = true) {
     const isSent = message.user === state.currentUser;
     const div = document.createElement('div');
     div.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
+    div.dataset.messageId = message.timestamp;
     
     if (!isSent) {
       const sender = document.createElement('div');
@@ -234,7 +264,12 @@ function addMessageToUI(message, shouldScroll = true) {
     content.className = `message-content ${message.type || 'chat'}`;
     
     if (message.type === 'poll') {
-      content.innerHTML = createPollHTML(message);
+      const pollData = JSON.parse(message.pollData || message.content);
+      state.polls[pollData.id] = pollData;
+      content.innerHTML = createPollHTML(pollData);
+      content.dataset.pollId = pollData.id;
+    } else if (message.type === 'reminder') {
+      content.innerHTML = createReminderHTML(message);
     } else {
       content.textContent = message.content;
     }
@@ -257,18 +292,165 @@ function addMessageToUI(message, shouldScroll = true) {
   updateStats();
 }
 
-function createPollHTML(message) {
-  const poll = JSON.parse(message.content);
+function createReminderHTML(message) {
+  const reminderData = JSON.parse(message.reminderData || '{}');
+  return `
+    <div>
+      <strong>⏰ ${reminderData.text}</strong>
+      <div style="font-size: 0.85rem; margin-top: 0.25rem; opacity: 0.9;">
+        📅 ${new Date(reminderData.time).toLocaleString()}
+      </div>
+      <button 
+        onclick="convertReminderToNote('${message.timestamp}')" 
+        style="background: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.5); color: white; padding: 0.375rem 0.75rem; border-radius: 6px; margin-top: 0.5rem; cursor: pointer; font-size: 0.8125rem;"
+      >
+        💾 Save as Note
+      </button>
+    </div>
+  `;
+}
+
+window.convertReminderToNote = function(messageTimestamp) {
+  const message = state.messages.find(m => m.timestamp === messageTimestamp);
+  if (!message) return;
+  
+  const reminderData = JSON.parse(message.reminderData);
+  const noteContent = `${reminderData.text}\nScheduled for: ${new Date(reminderData.time).toLocaleString()}`;
+  
+  const note = { 
+    text: noteContent, 
+    id: Date.now(), 
+    user: state.currentUser,
+    fromReminder: true
+  };
+  state.savedItems.push(note);
+  addSavedItem(note);
+  
+  sendWS({
+    type: 'reminder_to_note',
+    originalMessage: messageTimestamp,
+    noteContent: noteContent,
+    user: state.currentUser,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Show success message
+  const notif = document.createElement('div');
+  notif.className = 'system-message';
+  notif.textContent = '✅ Reminder saved as note!';
+  elements.messagesArea.appendChild(notif);
+  setTimeout(() => notif.remove(), 3000);
+};
+
+function handleReminderConversion(data) {
+  const note = {
+    text: data.noteContent,
+    id: Date.now(),
+    user: data.user,
+    fromReminder: true
+  };
+  
+  if (data.user !== state.currentUser) {
+    state.savedItems.push(note);
+    addSavedItem(note);
+  }
+  
+  const notif = document.createElement('div');
+  notif.className = 'system-message';
+  notif.textContent = `${data.user} saved a reminder as note`;
+  elements.messagesArea.appendChild(notif);
+};
+
+function createPollHTML(poll) {
+  const totalVotes = (poll.votes?.[0]?.length || 0) + (poll.votes?.[1]?.length || 0);
+  
   return `
     <div class="poll-question">${poll.question}</div>
-    <div class="poll-option" onclick="votePoll('${poll.id}', 0)">${poll.options[0]}</div>
-    <div class="poll-option" onclick="votePoll('${poll.id}', 1)">${poll.options[1]}</div>
+    ${poll.options.map((option, index) => {
+      const votes = poll.votes?.[index] || [];
+      const percentage = totalVotes > 0 ? Math.round((votes.length / totalVotes) * 100) : 0;
+      const hasVoted = votes.includes(state.currentUser);
+      
+      return `
+        <div class="poll-option ${hasVoted ? 'selected' : ''}" onclick="votePoll('${poll.id}', ${index})">
+          <span class="poll-option-text">${option}</span>
+          ${votes.length > 0 ? `
+            <div class="poll-votes">
+              <div class="poll-voters">
+                ${votes.map(voter => `<span class="poll-voter-badge">${voter}</span>`).join('')}
+              </div>
+              <span class="poll-percentage">${percentage}%</span>
+            </div>
+            <div class="poll-progress-bar">
+              <div class="poll-progress-fill" style="width: ${percentage}%"></div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('')}
   `;
 }
 
 window.votePoll = function(pollId, option) {
-  alert(`You voted for option ${option + 1}!`);
+  const poll = state.polls[pollId];
+  if (!poll) return;
+  
+  // Initialize votes if needed
+  if (!poll.votes) {
+    poll.votes = [[], []];
+  }
+  
+  // Remove user's previous vote
+  poll.votes.forEach(voteArray => {
+    const index = voteArray.indexOf(state.currentUser);
+    if (index > -1) voteArray.splice(index, 1);
+  });
+  
+  // Add new vote
+  poll.votes[option].push(state.currentUser);
+  
+  // Broadcast vote
+  sendWS({
+    type: 'poll_vote',
+    pollId: pollId,
+    option: option,
+    user: state.currentUser,
+    pollData: JSON.stringify(poll)
+  });
+  
+  // Update UI
+  updatePollUI(pollId);
 };
+
+function updatePollVote(pollId, option, user) {
+  const poll = state.polls[pollId];
+  if (!poll) return;
+  
+  // Initialize votes if needed
+  if (!poll.votes) {
+    poll.votes = [[], []];
+  }
+  
+  // Remove user's previous vote
+  poll.votes.forEach(voteArray => {
+    const index = voteArray.indexOf(user);
+    if (index > -1) voteArray.splice(index, 1);
+  });
+  
+  // Add new vote
+  poll.votes[option].push(user);
+  
+  // Update UI
+  updatePollUI(pollId);
+}
+
+function updatePollUI(pollId) {
+  const pollElement = document.querySelector(`[data-poll-id="${pollId}"]`);
+  if (!pollElement) return;
+  
+  const poll = state.polls[pollId];
+  pollElement.innerHTML = createPollHTML(poll);
+}
 
 function formatTime(isoString) {
   const date = new Date(isoString);
@@ -293,11 +475,16 @@ function formatTime(isoString) {
 function setupMenuListeners() {
   elements.menuBtn.addEventListener('click', () => {
     elements.sideMenu.classList.add('active');
+    elements.menuOverlay.classList.add('active');
   });
   
-  elements.closeMenuBtn.addEventListener('click', () => {
+  const closeMenu = () => {
     elements.sideMenu.classList.remove('active');
-  });
+    elements.menuOverlay.classList.remove('active');
+  };
+  
+  elements.closeMenuBtn.addEventListener('click', closeMenu);
+  elements.menuOverlay.addEventListener('click', closeMenu);
   
   elements.emailNotesBtn.addEventListener('click', () => {
     elements.emailModal.classList.remove('hidden');
@@ -313,6 +500,7 @@ function setupMenuListeners() {
         </div>
       `;
       state.messages = [];
+      state.polls = {};
       updateStats();
     }
   });
@@ -398,7 +586,8 @@ function setupModalListeners() {
       
       sendWS({
         type: 'reminder',
-        content: `⏰ Reminder: ${text} at ${new Date(time).toLocaleString()}`,
+        content: `⏰ ${text}`,
+        reminderData: JSON.stringify(reminder),
         user: state.currentUser,
         timestamp: new Date().toISOString()
       });
@@ -416,7 +605,7 @@ function setupModalListeners() {
     const urgent = document.getElementById('todo-urgent').checked;
     
     if (text) {
-      const todo = { text, urgent, id: Date.now() };
+      const todo = { text, urgent, id: Date.now(), completed: false };
       state.todos.push(todo);
       
       const prefix = urgent ? '🚨 URGENT' : '✅';
@@ -463,14 +652,18 @@ function setupModalListeners() {
     
     if (question && option1 && option2) {
       const poll = {
-        id: Date.now(),
+        id: Date.now().toString(),
         question,
-        options: [option1, option2]
+        options: [option1, option2],
+        votes: [[], []]
       };
+      
+      state.polls[poll.id] = poll;
       
       sendWS({
         type: 'poll',
-        content: JSON.stringify(poll),
+        content: '',
+        pollData: JSON.stringify(poll),
         user: state.currentUser,
         timestamp: new Date().toISOString()
       });
@@ -493,8 +686,10 @@ function addSavedItem(note) {
   
   const div = document.createElement('div');
   div.className = 'saved-item';
+  div.dataset.noteId = note.id;
   div.innerHTML = `
     ${note.text}
+    ${note.fromReminder ? '<span style="font-size: 0.75rem; opacity: 0.8;"> (from reminder)</span>' : ''}
     <button class="saved-item-delete" onclick="deleteSavedItem(${note.id})">✕</button>
   `;
   elements.savedItemsList.appendChild(div);
@@ -502,7 +697,8 @@ function addSavedItem(note) {
 
 window.deleteSavedItem = function(id) {
   state.savedItems = state.savedItems.filter(item => item.id !== id);
-  elements.savedItemsList.querySelector(`[onclick="deleteSavedItem(${id})"]`).parentElement.remove();
+  const item = elements.savedItemsList.querySelector(`[data-note-id="${id}"]`);
+  if (item) item.remove();
   
   if (state.savedItems.length === 0) {
     elements.savedItemsList.innerHTML = '<p class="empty-state">No saved items yet</p>';
@@ -519,7 +715,8 @@ function updateEmailPreview() {
   if (state.savedItems.length > 0) {
     preview += `📝 SAVED NOTES:\n`;
     state.savedItems.forEach((item, i) => {
-      preview += `${i + 1}. ${item.text}\n`;
+      const tag = item.fromReminder ? ' [From Reminder]' : '';
+      preview += `${i + 1}. ${item.text}${tag}\n`;
     });
     preview += `\n`;
   }
@@ -528,7 +725,8 @@ function updateEmailPreview() {
     preview += `✅ TO-DO LIST:\n`;
     state.todos.forEach((item, i) => {
       const prefix = item.urgent ? '🚨' : '•';
-      preview += `${prefix} ${item.text}\n`;
+      const status = item.completed ? '[✓]' : '[ ]';
+      preview += `${prefix} ${status} ${item.text}\n`;
     });
     preview += `\n`;
   }
@@ -536,7 +734,7 @@ function updateEmailPreview() {
   if (state.reminders.length > 0) {
     preview += `⏰ REMINDERS:\n`;
     state.reminders.forEach((item, i) => {
-      preview += `• ${item.text} - ${item.time}\n`;
+      preview += `• ${item.text} - ${new Date(item.time).toLocaleString()}\n`;
     });
     preview += `\n`;
   }
