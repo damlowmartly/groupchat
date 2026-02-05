@@ -159,8 +159,12 @@ input, textarea, select {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
   width: 100vw;
   background: white;
+  position: relative;
+  /* Safe area for notched devices */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* ============================================ */
@@ -239,11 +243,14 @@ input, textarea, select {
 .messages-area {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem;
+  padding-bottom: 2rem;
   background: white;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .date-divider {
@@ -341,12 +348,14 @@ input, textarea, select {
   border: 2px solid var(--messenger-blue);
   color: var(--text-primary);
   padding: 1rem;
+  min-width: 250px;
 }
 
 .poll-question {
   font-weight: 600;
   margin-bottom: 0.75rem;
   font-size: 1rem;
+  color: var(--text-primary);
 }
 
 .poll-option {
@@ -355,18 +364,79 @@ input, textarea, select {
   margin: 0.5rem 0;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.2s;
-  text-align: center;
+  transition: all 0.2s;
+  text-align: left;
   font-weight: 500;
+  position: relative;
+  border: 2px solid transparent;
 }
 
 .poll-option:hover {
   background: var(--border-light);
+  border-color: var(--messenger-blue);
 }
 
 .poll-option.selected {
   background: var(--messenger-blue);
   color: white;
+  border-color: var(--messenger-blue-dark);
+}
+
+.poll-option-text {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.poll-votes {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.poll-voters {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.poll-voter-badge {
+  background: var(--messenger-blue);
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.poll-option.selected .poll-voter-badge {
+  background: white;
+  color: var(--messenger-blue);
+}
+
+.poll-percentage {
+  margin-left: auto;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.poll-progress-bar {
+  height: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
+
+.poll-progress-fill {
+  height: 100%;
+  background: var(--messenger-blue);
+  transition: width 0.3s ease;
+}
+
+.poll-option.selected .poll-progress-fill {
+  background: white;
 }
 
 .message-time {
@@ -399,6 +469,9 @@ input, textarea, select {
   border-top: 1px solid var(--border-light);
   gap: 0.5rem;
   overflow-x: auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 99;
 }
 
 .quick-btn {
@@ -428,6 +501,9 @@ input, textarea, select {
   background: white;
   border-top: 1px solid var(--border-light);
   gap: 0.5rem;
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
 }
 
 #message-input {
@@ -451,6 +527,7 @@ input, textarea, select {
   color: white;
   width: 36px;
   height: 36px;
+  flex-shrink: 0;
 }
 
 .send-btn:hover {
@@ -474,7 +551,7 @@ input, textarea, select {
   height: 100vh;
   background: white;
   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
+  z-index: 2000;
   transform: translateX(100%);
   transition: transform 0.3s ease;
   overflow-y: auto;
@@ -482,6 +559,25 @@ input, textarea, select {
 
 .side-menu.active {
   transform: translateX(0);
+}
+
+/* Menu overlay backdrop */
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.menu-overlay.active {
+  opacity: 1;
+  pointer-events: all;
 }
 
 .menu-header {
@@ -849,6 +945,8 @@ input, textarea, select {
   
   .messenger-header {
     padding: 0.625rem 0.75rem;
+    /* Safe area for notch */
+    padding-top: max(0.625rem, env(safe-area-inset-top));
   }
   
   .header-center h1 {
@@ -857,6 +955,8 @@ input, textarea, select {
   
   .messages-area {
     padding: 0.75rem;
+    /* Extra padding for better keyboard visibility */
+    padding-bottom: 3rem;
   }
   
   .message-bubble {
@@ -865,6 +965,8 @@ input, textarea, select {
   
   .quick-actions {
     padding: 0.5rem;
+    /* Safe area for home indicator */
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
   
   .quick-btn {
@@ -875,14 +977,52 @@ input, textarea, select {
   
   .message-input-container {
     padding: 0.625rem 0.75rem;
+    /* Safe area for home indicator */
+    padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
+    /* Extra spacing to ensure button is always visible */
+    min-height: 60px;
   }
   
   #message-input {
     font-size: 1rem; /* Prevent iOS zoom */
+    padding: 0.5rem 0.875rem;
+  }
+  
+  .send-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+  
+  .icon-btn {
+    min-width: 36px;
+    min-height: 36px;
   }
   
   .modal-content {
     max-width: 95%;
+  }
+}
+
+/* Fix for iOS Safari address bar hiding */
+@supports (-webkit-touch-callout: none) {
+  #messenger {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Landscape mobile fixes */
+@media (max-width: 812px) and (orientation: landscape) {
+  .messages-area {
+    padding-bottom: 1rem;
+  }
+  
+  .quick-actions {
+    padding: 0.375rem 0.75rem;
+  }
+  
+  .quick-btn {
+    width: 36px;
+    height: 36px;
   }
 }
 
