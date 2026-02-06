@@ -32,7 +32,7 @@ const gameState = {
 // ============================================
 wss.on('connection', (ws) => {
   console.log('New player connected');
-  
+
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
@@ -41,9 +41,8 @@ wss.on('connection', (ws) => {
       console.error('Error processing message:', error);
     }
   });
-  
+
   ws.on('close', () => {
-    // Find and remove disconnected player
     for (const [id, player] of gameState.players) {
       if (player.ws === ws) {
         console.log(`${player.name} disconnected`);
@@ -56,7 +55,7 @@ wss.on('connection', (ws) => {
 });
 
 // ============================================
-// MESSAGE HANDLERS
+// MESSAGE ROUTER
 // ============================================
 function handleClientMessage(ws, data) {
   switch (data.type) {
@@ -92,7 +91,7 @@ function handleClientMessage(ws, data) {
 // ============================================
 function handlePlayerJoin(ws, data) {
   const player = {
-    ws: ws,
+    ws,
     id: data.id,
     name: data.name,
     avatar: data.avatar,
@@ -101,109 +100,30 @@ function handlePlayerJoin(ws, data) {
     alive: true,
     role: null
   };
-  
+
   gameState.players.set(data.id, player);
-  console.log(`${data.name} joined (${gameState.players.size} players)`);
-  
-  // Send current state
+  console.log(`${data.name} joined`);
+
   sendToPlayer(ws, {
     type: 'gameState',
-    players: Array.from(gameState.players.values()).map(p => ({
-      id: p.id,
-      name: p.name,
-      avatar: p.avatar,
-      x: p.x,
-      y: p.y,
-      alive: p.alive
-    })),
+    players: Array.from(gameState.players.values()),
     bloodStains: gameState.bloodStains,
     gameStarted: gameState.gameStarted
   });
-  
+
   broadcastGameState();
 }
 
 // ============================================
-// KILL PLAYER - FIRST KILL = KILLER
+// PLAYER MOVE
 // ============================================
-function handleKillPlayer(data) {
-  const killer = gameState.players.get(data.killerId);
-  const victim = gameState.players.get(data.victimId);
-  
-  if (!killer || !victim || !victim.alive) return;
-  
-  console.log(`${killer.name} killed ${victim.name} with ${data.weapon}`);
-  
-  victim.alive = false;
-  
-  // FIRST KILL? This person becomes THE KILLER!
-  if (!gameState.firstKillHappened) {
-    gameState.firstKillHappened = true;
-    gameState.killer = data.killerId;
-    killer.role = 'killer';
-    gameState.gameStarted = true;
-    gameState.roundTime = 300; // 5 minutes timer starts
-    
-    console.log(`🔪 FIRST KILL! ${killer.name} is now THE KILLER`);
-    
-    // Notify everyone
-    broadcast({
-      type: 'firstKill',
-      killerId: data.killerId,
-      victimId: data.victimId
-    });
-    
-    // Start timer
-    startTimer();
-  }
-  
-  // Add blood
-  gameState.bloodStains.push({
-    id: `blood-${Date.now()}`,
-    x: data.x,
-    y: data.y
-  });
-  
-  // Broadcast kill
-  broadcast({
-    type: 'playerKilled',
-    killerId: data.killerId,
-    victimId: data.victimId,
-    x: data.x,
-    y: data.y
-  });
-  
-  // Check win condition
-  checkGameOver();
-}
-
-// ============================================
-// TIMER
-// ============================================
-function startTimer() {
-  if (gameState.timerInterval) return;
-  
-  gameState.timerInterval = setInterval(() => {
-    gameState.roundTime--;
-    
-    broadcast({
-      type: 'timerUpdate',
-      time: gameState.roundTime
-    });
-    
-    if (gameState.roundTime <= 0) {
-      const killer = gameState.players.get(gameState.killer);
-      endGame('innocents', '⏰ Time up! Innocents survived!', killer?.name);
-    }
-  }, 1000);
-}
+function handlePlayerMove(data) {
   const player = gameState.players.get(data.id);
   if (!player || !player.alive) return;
-  
+
   player.x = data.x;
   player.y = data.y;
-  
-  // Broadcast movement to all other players
+
   broadcastExcept(data.id, {
     type: 'playerMoved',
     id: data.id,
@@ -213,50 +133,78 @@ function startTimer() {
 }
 
 // ============================================
-// KILL PLAYER
+// KILL PLAYER (FIRST KILL CREATES KILLER)
 // ============================================
 function handleKillPlayer(data) {
   const killer = gameState.players.get(data.killerId);
   const victim = gameState.players.get(data.victimId);
-  
-  if (!killer || !victim || killer.role !== 'killer' || !victim.alive) {
-    return;
-  }
-  
-  console.log(`${killer.name} killed ${victim.name}`);
-  
+
+  if (!killer || !victim || !victim.alive) return;
+
   victim.alive = false;
-  
-  // Add blood stain
+
+  if (!gameState.firstKillHappened) {
+    gameState.firstKillHappened = true;
+    gameState.killer = killer.id;
+    killer.role = 'killer';
+    gameState.gameStarted = true;
+    gameState.roundTime = 300;
+    startTimer();
+
+    broadcast({
+      type: 'firstKill',
+      killerId: killer.id,
+      victimId: victim.id
+    });
+  }
+
   gameState.bloodStains.push({
     id: `blood-${Date.now()}`,
     x: data.x,
     y: data.y
   });
-  
-  // Broadcast kill event
+
   broadcast({
     type: 'playerKilled',
-    killerId: data.killerId,
-    victimId: data.victimId,
+    killerId: killer.id,
+    victimId: victim.id,
     x: data.x,
     y: data.y
   });
-  
+
+  checkGameOver();
+}
+
+// ============================================
+// TIMER
+// ============================================
+function startTimer() {
+  if (gameState.timerInterval) return;
+
+  gameState.timerInterval = setInterval(() => {
+    gameState.roundTime--;
+
+    broadcast({
+      type: 'timerUpdate',
+      time: gameState.roundTime
+    });
+
+    if (gameState.roundTime <= 0) {
+      endGame('innocents', '⏰ Time up! Innocents survived!', null);
+    }
+  }, 1000);
+}
+
 // ============================================
 // CHECK GAME OVER
 // ============================================
 function checkGameOver() {
-  const alivePlayers = Array.from(gameState.players.values()).filter(p => p.alive);
-  const aliveInnocents = alivePlayers.filter(p => p.role !== 'killer');
-  
-  if (aliveInnocents.length === 0) {
-    // Killer wins
+  const alive = [...gameState.players.values()].filter(p => p.alive);
+  const innocents = alive.filter(p => p.role !== 'killer');
+
+  if (innocents.length === 0 && gameState.killer) {
     const killer = gameState.players.get(gameState.killer);
-    endGame('killer', `💀 ${killer?.name || 'The Killer'} eliminated everyone!`, killer?.name);
-  } else if (alivePlayers.length === 1 && !gameState.killer) {
-    // No killer yet, last person standing
-    endGame('innocents', '✅ Everyone survived! No killer emerged.', 'None');
+    endGame('killer', `💀 ${killer?.name} eliminated everyone!`, killer?.name);
   }
 }
 
@@ -266,41 +214,23 @@ function checkGameOver() {
 function handleAccusePlayer(data) {
   const accuser = gameState.players.get(data.accuserId);
   const target = gameState.players.get(data.targetId);
-  
-  if (!accuser || !target || !accuser.alive || !target.alive) {
-    return;
-  }
-  
-  const correct = target.role === 'killer';
-  
-  console.log(`${accuser.name} accused ${target.name} - ${correct ? 'CORRECT' : 'WRONG'}`);
-  
-  if (correct) {
-    // Correct accusation - killer dies
+
+  if (!accuser || !target || !accuser.alive || !target.alive) return;
+
+  if (target.role === 'killer') {
     target.alive = false;
-    
-    broadcast({
-      type: 'playerAccused',
-      accuserId: data.accuserId,
-      targetId: data.targetId,
-      correct: true
-    });
-    
-    const killer = gameState.players.get(gameState.killer);
-    endGame('innocents', `⚡ ${accuser.name} caught the killer!`, killer?.name);
+    endGame('innocents', `⚡ ${accuser.name} caught the killer!`, target.name);
   } else {
-    // Wrong accusation - accuser dies
     accuser.alive = false;
-    
-    broadcast({
-      type: 'playerAccused',
-      accuserId: data.accuserId,
-      targetId: data.targetId,
-      correct: false
-    });
-    
     checkGameOver();
   }
+
+  broadcast({
+    type: 'playerAccused',
+    accuserId: data.accuserId,
+    targetId: data.targetId,
+    correct: target.role === 'killer'
+  });
 }
 
 // ============================================
@@ -309,7 +239,7 @@ function handleAccusePlayer(data) {
 function handleChatMessage(data) {
   const player = gameState.players.get(data.id);
   if (!player || !player.alive) return;
-  
+
   broadcast({
     type: 'chatMessage',
     id: data.id,
@@ -319,15 +249,14 @@ function handleChatMessage(data) {
 }
 
 // ============================================
-// FURNITURE INTERACTIONS
+// INTERACTIONS
 // ============================================
 function handlePickupWeapon(data) {
   const player = gameState.players.get(data.playerId);
   if (!player || !player.alive) return;
-  
+
   player.weapon = data.weapon;
-  console.log(`${player.name} picked up ${data.weapon}`);
-  
+
   broadcast({
     type: 'weaponPickup',
     playerId: data.playerId,
@@ -338,11 +267,7 @@ function handlePickupWeapon(data) {
 function handlePlayerHide(data) {
   const player = gameState.players.get(data.playerId);
   if (!player || !player.alive) return;
-  
-  player.hiding = true;
-  player.hideLocation = data.location;
-  console.log(`${player.name} is hiding in ${data.location}`);
-  
+
   broadcast({
     type: 'playerHiding',
     playerId: data.playerId,
@@ -366,57 +291,35 @@ function endGame(winner, message, killerName) {
     clearInterval(gameState.timerInterval);
     gameState.timerInterval = null;
   }
-  
-  const kills = gameState.bloodStains.length;
-  
+
   broadcast({
     type: 'gameOver',
-    winner: winner === 'killer' ? 'KILLER WINS' : 'INNOCENTS WIN',
-    message: message,
-    killerName: killerName,
-    kills: kills
+    winner,
+    message,
+    killerName,
+    kills: gameState.bloodStains.length
   });
-  
+
   console.log('Game Over:', message);
 }
 
-function resetGame() {
-  gameState.killer = null;
-  gameState.targetPlayer = null;
-  gameState.bloodStains = [];
-  gameState.gameStarted = false;
-  gameState.roundTime = 600;
-  
-  // Reset all players
-  gameState.players.forEach(player => {
-    player.alive = true;
-    player.role = null;
-    player.x = 100 + Math.random() * 200;
-    player.y = 100 + Math.random() * 200;
-  });
-  
-  if (gameState.players.size >= 2) {
-    startGame();
-  }
-}
-
 // ============================================
-// BROADCAST FUNCTIONS
+// BROADCAST HELPERS
 // ============================================
 function broadcast(data) {
-  const message = JSON.stringify(data);
-  gameState.players.forEach(player => {
-    if (player.ws.readyState === WebSocket.OPEN) {
-      player.ws.send(message);
+  const msg = JSON.stringify(data);
+  gameState.players.forEach(p => {
+    if (p.ws.readyState === WebSocket.OPEN) {
+      p.ws.send(msg);
     }
   });
 }
 
 function broadcastExcept(excludeId, data) {
-  const message = JSON.stringify(data);
-  gameState.players.forEach((player, id) => {
-    if (id !== excludeId && player.ws.readyState === WebSocket.OPEN) {
-      player.ws.send(message);
+  const msg = JSON.stringify(data);
+  gameState.players.forEach((p, id) => {
+    if (id !== excludeId && p.ws.readyState === WebSocket.OPEN) {
+      p.ws.send(msg);
     }
   });
 }
@@ -430,25 +333,9 @@ function sendToPlayer(ws, data) {
 function broadcastGameState() {
   broadcast({
     type: 'gameState',
-    players: Array.from(gameState.players.values()).map(p => ({
-      id: p.id,
-      name: p.name,
-      avatar: p.avatar,
-      x: p.x,
-      y: p.y,
-      alive: p.alive
-    })),
+    players: [...gameState.players.values()],
     bloodStains: gameState.bloodStains
   });
-}
-
-// ============================================
-// UTILITIES
-// ============================================
-function formatTime(seconds) {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 // ============================================
@@ -456,6 +343,5 @@ function formatTime(seconds) {
 // ============================================
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🎮 Mystery House Game Server running on port ${PORT}`);
-  console.log(`🏠 Game starts with minimum 2 players`);
+  console.log(`🎮 Mystery House running on port ${PORT}`);
 });
