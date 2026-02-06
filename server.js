@@ -18,12 +18,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 // GAME STATE
 // ============================================
 const gameState = {
-  players: new Map(), // id -> {ws, name, avatar, x, y, alive, role}
+  players: new Map(),
   killer: null,
-  targetPlayer: null,
+  firstKillHappened: false,
   bloodStains: [],
   gameStarted: false,
-  roundTime: 600, // 10 minutes in seconds
+  roundTime: 0,
   timerInterval: null
 };
 
@@ -103,9 +103,9 @@ function handlePlayerJoin(ws, data) {
   };
   
   gameState.players.set(data.id, player);
-  console.log(`${data.name} joined the game (${gameState.players.size} players)`);
+  console.log(`${data.name} joined (${gameState.players.size} players)`);
   
-  // Send current game state to new player
+  // Send current state
   sendToPlayer(ws, {
     type: 'gameState',
     players: Array.from(gameState.players.values()).map(p => ({
@@ -116,63 +116,65 @@ function handlePlayerJoin(ws, data) {
       y: p.y,
       alive: p.alive
     })),
-    bloodStains: gameState.bloodStains
+    bloodStains: gameState.bloodStains,
+    gameStarted: gameState.gameStarted
   });
-  
-  // Start game when we have enough players (minimum 2)
-  if (gameState.players.size >= 2 && !gameState.gameStarted) {
-    setTimeout(() => startGame(), 2000);
-  } else if (gameState.gameStarted) {
-    // Assign role to late joiner (always innocent)
-    sendToPlayer(ws, {
-      type: 'roleAssigned',
-      role: 'innocent',
-      targetId: null
-    });
-  }
   
   broadcastGameState();
 }
 
 // ============================================
-// START GAME
+// KILL PLAYER - FIRST KILL = KILLER
 // ============================================
-function startGame() {
-  if (gameState.gameStarted) return;
+function handleKillPlayer(data) {
+  const killer = gameState.players.get(data.killerId);
+  const victim = gameState.players.get(data.victimId);
   
-  gameState.gameStarted = true;
-  console.log('Starting game with', gameState.players.size, 'players');
+  if (!killer || !victim || !victim.alive) return;
   
-  // Randomly select killer
-  const playerIds = Array.from(gameState.players.keys());
-  const killerIndex = Math.floor(Math.random() * playerIds.length);
-  const killerId = playerIds[killerIndex];
+  console.log(`${killer.name} killed ${victim.name} with ${data.weapon}`);
   
-  gameState.killer = killerId;
-  const killerPlayer = gameState.players.get(killerId);
-  killerPlayer.role = 'killer';
+  victim.alive = false;
   
-  // Optionally assign a target (random other player)
-  const nonKillers = playerIds.filter(id => id !== killerId);
-  const targetIndex = Math.floor(Math.random() * nonKillers.length);
-  gameState.targetPlayer = nonKillers[targetIndex];
-  
-  console.log(`Killer: ${killerPlayer.name}, Target: ${gameState.players.get(gameState.targetPlayer)?.name || 'Anyone'}`);
-  
-  // Assign roles to all players
-  gameState.players.forEach((player, id) => {
-    const isKiller = id === killerId;
-    player.role = isKiller ? 'killer' : 'innocent';
+  // FIRST KILL? This person becomes THE KILLER!
+  if (!gameState.firstKillHappened) {
+    gameState.firstKillHappened = true;
+    gameState.killer = data.killerId;
+    killer.role = 'killer';
+    gameState.gameStarted = true;
+    gameState.roundTime = 300; // 5 minutes timer starts
     
-    sendToPlayer(player.ws, {
-      type: 'roleAssigned',
-      role: player.role,
-      targetId: isKiller ? gameState.targetPlayer : null
+    console.log(`🔪 FIRST KILL! ${killer.name} is now THE KILLER`);
+    
+    // Notify everyone
+    broadcast({
+      type: 'firstKill',
+      killerId: data.killerId,
+      victimId: data.victimId
     });
+    
+    // Start timer
+    startTimer();
+  }
+  
+  // Add blood
+  gameState.bloodStains.push({
+    id: `blood-${Date.now()}`,
+    x: data.x,
+    y: data.y
   });
   
-  // Start timer
-  startTimer();
+  // Broadcast kill
+  broadcast({
+    type: 'playerKilled',
+    killerId: data.killerId,
+    victimId: data.victimId,
+    x: data.x,
+    y: data.y
+  });
+  
+  // Check win condition
+  checkGameOver();
 }
 
 // ============================================
@@ -190,15 +192,11 @@ function startTimer() {
     });
     
     if (gameState.roundTime <= 0) {
-      endGame('innocents', 'Time\'s up! The innocents survive!');
+      const killer = gameState.players.get(gameState.killer);
+      endGame('innocents', '⏰ Time up! Innocents survived!', killer?.name);
     }
   }, 1000);
 }
-
-// ============================================
-// PLAYER MOVEMENT
-// ============================================
-function handlePlayerMove(data) {
   const player = gameState.players.get(data.id);
   if (!player || !player.alive) return;
   
@@ -245,10 +243,20 @@ function handleKillPlayer(data) {
     y: data.y
   });
   
-  // Check if killer won
-  const aliveInnocents = Array.from(gameState.players.values()).filter(p => p.alive && p.role === 'innocent');
+// ============================================
+// CHECK GAME OVER
+// ============================================
+function checkGameOver() {
+  const alivePlayers = Array.from(gameState.players.values()).filter(p => p.alive);
+  const aliveInnocents = alivePlayers.filter(p => p.role !== 'killer');
+  
   if (aliveInnocents.length === 0) {
-    endGame('killer', `💀 ${killer.name} (the killer) eliminated everyone!`);
+    // Killer wins
+    const killer = gameState.players.get(gameState.killer);
+    endGame('killer', `💀 ${killer?.name || 'The Killer'} eliminated everyone!`, killer?.name);
+  } else if (alivePlayers.length === 1 && !gameState.killer) {
+    // No killer yet, last person standing
+    endGame('innocents', '✅ Everyone survived! No killer emerged.', 'None');
   }
 }
 
@@ -278,7 +286,8 @@ function handleAccusePlayer(data) {
       correct: true
     });
     
-    endGame('innocents', `⚡ ${accuser.name} correctly identified ${target.name} as the killer!`);
+    const killer = gameState.players.get(gameState.killer);
+    endGame('innocents', `⚡ ${accuser.name} caught the killer!`, killer?.name);
   } else {
     // Wrong accusation - accuser dies
     accuser.alive = false;
@@ -290,12 +299,7 @@ function handleAccusePlayer(data) {
       correct: false
     });
     
-    // Check if killer is last one alive
-    const aliveInnocents = Array.from(gameState.players.values()).filter(p => p.alive && p.role === 'innocent');
-    if (aliveInnocents.length === 0) {
-      const killer = gameState.players.get(gameState.killer);
-      endGame('killer', `💀 ${killer.name} (the killer) wins by elimination!`);
-    }
+    checkGameOver();
   }
 }
 
@@ -357,30 +361,23 @@ function handleToggleDoor(data) {
 // ============================================
 // GAME OVER
 // ============================================
-function endGame(winner, message) {
+function endGame(winner, message, killerName) {
   if (gameState.timerInterval) {
     clearInterval(gameState.timerInterval);
     gameState.timerInterval = null;
   }
   
-  const killer = gameState.players.get(gameState.killer);
-  const killerName = killer ? killer.name : 'Unknown';
-  const deaths = Array.from(gameState.players.values()).filter(p => !p.alive).length;
-  const duration = formatTime(600 - gameState.roundTime);
+  const kills = gameState.bloodStains.length;
   
   broadcast({
     type: 'gameOver',
     winner: winner === 'killer' ? 'KILLER WINS' : 'INNOCENTS WIN',
     message: message,
     killerName: killerName,
-    deaths: deaths,
-    duration: duration
+    kills: kills
   });
   
   console.log('Game Over:', message);
-  
-  // Reset game after 30 seconds
-  setTimeout(() => resetGame(), 30000);
 }
 
 function resetGame() {
