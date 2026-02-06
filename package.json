@@ -1,5 +1,5 @@
 {
-  "name": "groupchat",
+  "name": "hato-jbro-collaboration",
   "version": "1.0.0",
   "description": "Real-time collaboration app for Hato and Jbro with WebSocket, drawing, chat, and notes",
   "main": "server.js",
