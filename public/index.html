@@ -4,273 +4,217 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>Hato & Jbro Messenger</title>
+  <title>🏠 Mystery House Game</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  
+
   <!-- ============================================ -->
   <!-- LOGIN SCREEN -->
   <!-- ============================================ -->
   <div id="login-screen">
     <div class="login-container">
-      <h1>💬 Hato & Jbro Messenger</h1>
-      <p>Private workspace for two</p>
+      <h1>🏠 Mystery House</h1>
+      <p>Choose your avatar and join the game!</p>
       
       <form id="login-form">
         <div class="form-group">
-          <label for="username">Username</label>
-          <select id="username" required>
-            <option value="">Select user...</option>
-            <option value="Hato">Hato</option>
-            <option value="Jbro">Jbro</option>
-          </select>
+          <label>Your Name</label>
+          <input type="text" id="player-name" placeholder="Enter your name" required>
         </div>
         
         <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" placeholder="Enter password" required>
+          <label>Choose Avatar</label>
+          <div class="avatar-grid">
+            <label class="avatar-option">
+              <input type="radio" name="avatar" value="👮" required>
+              <span class="avatar-emoji">👮</span>
+              <span class="avatar-label">Detective</span>
+            </label>
+            <label class="avatar-option">
+              <input type="radio" name="avatar" value="🕵️‍♂️">
+              <span class="avatar-emoji">🕵️‍♂️</span>
+              <span class="avatar-label">Informant</span>
+            </label>
+            <label class="avatar-option">
+              <input type="radio" name="avatar" value="👨‍💼">
+              <span class="avatar-emoji">👨‍💼</span>
+              <span class="avatar-label">Businessman</span>
+            </label>
+            <label class="avatar-option">
+              <input type="radio" name="avatar" value="👩‍🔬">
+              <span class="avatar-emoji">👩‍🔬</span>
+              <span class="avatar-label">Scientist</span>
+            </label>
+            <label class="avatar-option">
+              <input type="radio" name="avatar" value="🧑‍🍳">
+              <span class="avatar-emoji">🧑‍🍳</span>
+              <span class="avatar-label">Chef</span>
+            </label>
+            <label class="avatar-option">
+              <input type="radio" name="avatar" value="👩‍⚕️">
+              <span class="avatar-emoji">👩‍⚕️</span>
+              <span class="avatar-label">Doctor</span>
+            </label>
+          </div>
         </div>
         
-        <button type="submit" class="btn-primary">Login</button>
+        <button type="submit" class="btn-primary">Join Game</button>
         <div id="login-error" class="error-message"></div>
       </form>
     </div>
   </div>
 
   <!-- ============================================ -->
-  <!-- MESSENGER INTERFACE -->
+  <!-- GAME SCREEN -->
   <!-- ============================================ -->
-  <div id="messenger" class="hidden">
+  <div id="game-screen" class="hidden">
     
-    <!-- Top Header Bar -->
-    <header class="messenger-header">
-      <div class="header-left">
-        <div class="online-indicator">
-          <span class="status-dot" id="status-dot"></span>
-          <span id="partner-name">Waiting...</span>
+    <!-- Top HUD -->
+    <div class="game-hud">
+      <div class="hud-left">
+        <div class="player-info">
+          <span id="player-avatar">👮</span>
+          <span id="player-name-display">Player</span>
+        </div>
+        <div id="role-display" class="role-badge hidden">💀 KILLER</div>
+      </div>
+      
+      <div class="hud-center">
+        <div class="timer">
+          <span class="timer-icon">⏰</span>
+          <span id="timer-display">10:00</span>
         </div>
       </div>
-      <div class="header-center">
-        <h1>💬 Messenger</h1>
+      
+      <div class="hud-right">
+        <div class="players-alive">
+          <span>👥</span>
+          <span id="alive-count">0</span>
+        </div>
       </div>
-      <div class="header-right">
-        <button class="icon-btn" id="menu-btn" title="Menu">☰</button>
-      </div>
-    </header>
-
-    <!-- Messages Container -->
-    <main class="messages-area" id="messages-area">
-      <div class="date-divider">
-        <span id="current-date">Today</span>
-      </div>
-      <!-- Messages will be added here dynamically -->
-    </main>
-
-    <!-- Quick Actions Bar (Above Input) -->
-    <div class="quick-actions">
-      <button class="quick-btn" data-action="reminder" title="Set Reminder">⏰</button>
-      <button class="quick-btn" data-action="todo" title="Add To-Do">✅</button>
-      <button class="quick-btn" data-action="note" title="Save Note">📝</button>
-      <button class="quick-btn" data-action="poll" title="Quick Poll">📊</button>
-      <button class="quick-btn" data-action="important" title="Important Message">⭐</button>
     </div>
 
-    <!-- Message Input Bar -->
-    <footer class="message-input-container">
-      <button class="icon-btn" id="attach-btn" title="Attach">📎</button>
-      <input 
-        type="text" 
-        id="message-input" 
-        placeholder="Type a message..." 
-        autocomplete="off"
-      >
-      <button class="icon-btn send-btn" id="send-btn" title="Send">
-        <span class="send-icon">➤</span>
+    <!-- Game Canvas / House -->
+    <div id="game-container">
+      <div id="house-grid">
+        <!-- Rooms will be generated here -->
+        <!-- Players will move around here -->
+      </div>
+    </div>
+
+    <!-- Action Buttons (Top of controls) -->
+    <div class="action-buttons">
+      <button id="kill-btn" class="action-btn hidden" title="Kill">
+        <span class="btn-emoji">☠️</span>
+        <span class="btn-label">Kill</span>
       </button>
-    </footer>
-
-  </div>
-
-  <!-- Menu Overlay Backdrop -->
-  <div id="menu-overlay" class="menu-overlay"></div>
-
-  <!-- ============================================ -->
-  <!-- SIDE MENU -->
-  <!-- ============================================ -->
-  <div id="side-menu" class="side-menu hidden">
-    <div class="menu-header">
-      <h2>Menu</h2>
-      <button class="close-btn" id="close-menu">✕</button>
+      <button id="accuse-btn" class="action-btn" title="Accuse">
+        <span class="btn-emoji">⚡</span>
+        <span class="btn-label">Accuse</span>
+      </button>
+      <button id="interact-btn" class="action-btn" title="Interact">
+        <span class="btn-emoji">✋</span>
+        <span class="btn-label">Use</span>
+      </button>
+      <button id="chat-btn" class="action-btn" title="Chat">
+        <span class="btn-emoji">💬</span>
+        <span class="btn-label">Chat</span>
+      </button>
     </div>
-    
-    <div class="menu-content">
-      <!-- User Info -->
-      <div class="menu-section">
-        <div class="user-info">
-          <div class="user-avatar">
-            <span id="user-avatar-text">H</span>
-          </div>
-          <div>
-            <div class="user-name" id="current-user-display">Hato</div>
-            <div class="user-status">Online</div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Quick Stats -->
-      <div class="menu-section">
-        <h3>Session Stats</h3>
-        <div class="stat-item">
-          <span>Messages:</span>
-          <strong id="stat-messages">0</strong>
-        </div>
-        <div class="stat-item">
-          <span>To-Dos:</span>
-          <strong id="stat-todos">0</strong>
-        </div>
-        <div class="stat-item">
-          <span>Reminders:</span>
-          <strong id="stat-reminders">0</strong>
-        </div>
-      </div>
-
-      <!-- Saved Items -->
-      <div class="menu-section">
-        <h3>📌 Saved Items</h3>
-        <div id="saved-items-list" class="saved-items-list">
-          <p class="empty-state">No saved items yet</p>
-        </div>
-      </div>
-
-      <!-- Email Notes -->
-      <div class="menu-section">
-        <h3>📧 Email Notes</h3>
-        <button class="menu-action-btn" id="email-notes-btn">
-          Send Notes via Email
-        </button>
-        <div id="email-status-menu" class="email-status-small"></div>
-      </div>
-
-      <!-- Actions -->
-      <div class="menu-section">
-        <button class="menu-action-btn secondary" id="clear-chat-btn">
-          🗑 Clear Chat History
-        </button>
-        <button class="menu-action-btn danger" id="logout-btn">
-          🚪 Logout
-        </button>
+    <!-- Mobile Controls -->
+    <div class="mobile-controls">
+      <div class="dpad">
+        <button class="dpad-btn dpad-up" data-direction="up">▲</button>
+        <button class="dpad-btn dpad-left" data-direction="left">◀</button>
+        <button class="dpad-btn dpad-center">🎮</button>
+        <button class="dpad-btn dpad-right" data-direction="right">▶</button>
+        <button class="dpad-btn dpad-down" data-direction="down">▼</button>
       </div>
     </div>
+
   </div>
 
   <!-- ============================================ -->
   <!-- MODALS -->
   <!-- ============================================ -->
   
-  <!-- Reminder Modal -->
-  <div id="reminder-modal" class="modal hidden">
+  <!-- Accuse Modal -->
+  <div id="accuse-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>⏰ Set Reminder</h3>
+        <h3>⚡ Accuse a Player</h3>
         <button class="close-btn modal-close">✕</button>
       </div>
       <div class="modal-body">
-        <input type="text" id="reminder-text" placeholder="What to remind?" class="modal-input">
-        <input type="datetime-local" id="reminder-time" class="modal-input">
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary modal-close">Cancel</button>
-        <button class="btn-primary" id="save-reminder-btn">Save Reminder</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- To-Do Modal -->
-  <div id="todo-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>✅ Add To-Do</h3>
-        <button class="close-btn modal-close">✕</button>
-      </div>
-      <div class="modal-body">
-        <input type="text" id="todo-text" placeholder="What needs to be done?" class="modal-input">
-        <label class="checkbox-label">
-          <input type="checkbox" id="todo-urgent"> Mark as urgent
-        </label>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary modal-close">Cancel</button>
-        <button class="btn-primary" id="save-todo-btn">Add To-Do</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Note Modal -->
-  <div id="note-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📝 Save Note</h3>
-        <button class="close-btn modal-close">✕</button>
-      </div>
-      <div class="modal-body">
-        <textarea id="note-text" placeholder="Write your note..." class="modal-textarea" rows="6"></textarea>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary modal-close">Cancel</button>
-        <button class="btn-primary" id="save-note-btn">Save Note</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Poll Modal -->
-  <div id="poll-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📊 Quick Poll</h3>
-        <button class="close-btn modal-close">✕</button>
-      </div>
-      <div class="modal-body">
-        <input type="text" id="poll-question" placeholder="Ask a question..." class="modal-input">
-        <input type="text" id="poll-option1" placeholder="Option 1" class="modal-input">
-        <input type="text" id="poll-option2" placeholder="Option 2" class="modal-input">
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary modal-close">Cancel</button>
-        <button class="btn-primary" id="send-poll-btn">Send Poll</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Email Modal -->
-  <div id="email-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📧 Send Notes via Email</h3>
-        <button class="close-btn modal-close">✕</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-description">Send all your saved notes and important messages to your email.</p>
-        
-        <label>Your Email Address:</label>
-        <input type="email" id="email-address" placeholder="your@email.com" class="modal-input">
-        
-        <label>Formspree Form ID:</label>
-        <input type="text" id="formspree-id" placeholder="e.g., xwkdjane" class="modal-input">
-        <small class="form-hint">Get your form ID from <a href="https://formspree.io" target="_blank">formspree.io</a></small>
-        
-        <div id="email-preview" class="email-preview">
-          <strong>Preview:</strong>
-          <div id="email-content-preview"></div>
+        <p class="warning-text">⚠️ WARNING: If you're wrong, you die!</p>
+        <div id="player-list" class="player-list">
+          <!-- Players will be listed here -->
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary modal-close">Cancel</button>
-        <button class="btn-primary" id="send-email-btn">Send Email</button>
       </div>
-      <div id="email-status" class="email-status"></div>
+    </div>
+  </div>
+
+  <!-- Chat Modal -->
+  <div id="chat-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>💬 Send Message</h3>
+        <button class="close-btn modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="emoji-picker">
+          <button class="emoji-btn" data-emoji="😂">😂</button>
+          <button class="emoji-btn" data-emoji="😱">😱</button>
+          <button class="emoji-btn" data-emoji="😡">😡</button>
+          <button class="emoji-btn" data-emoji="🤔">🤔</button>
+          <button class="emoji-btn" data-emoji="😎">😎</button>
+          <button class="emoji-btn" data-emoji="😢">😢</button>
+          <button class="emoji-btn" data-emoji="👍">👍</button>
+          <button class="emoji-btn" data-emoji="👎">👎</button>
+        </div>
+        <input type="text" id="chat-input" placeholder="Type message (optional)" class="modal-input">
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary modal-close">Cancel</button>
+        <button class="btn-primary" id="send-chat-btn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameover-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="gameover-title">🎮 Game Over</h3>
+      </div>
+      <div class="modal-body">
+        <div id="gameover-message" class="gameover-message"></div>
+        <div id="final-stats" class="final-stats"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="play-again-btn">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role Reveal Modal -->
+  <div id="role-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>🎭 Your Role</h3>
+      </div>
+      <div class="modal-body">
+        <div id="role-reveal" class="role-reveal"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="start-game-btn">Start Game</button>
+      </div>
     </div>
   </div>
 
