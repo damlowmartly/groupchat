@@ -33,7 +33,7 @@ const elements = {
   timerDisplay: document.getElementById('timer-display'),
   aliveCount: document.getElementById('alive-count'),
   
-  gameViewport: document.getElementById('game-viewport'),
+  
   houseGrid: document.getElementById('house-grid'),
   
   useBtn: document.getElementById('interact-btn'),
@@ -306,7 +306,9 @@ function updateCamera() {
   state.camera.x = Math.max(0, Math.min(2000 - viewportWidth, state.camera.x));
   state.camera.y = Math.max(0, Math.min(1500 - viewportHeight, state.camera.y));
   
-  elements.gameViewport.style.transform = `translate(-${state.camera.x}px, -${state.camera.y}px)`;
+ elements.houseGrid.style.transform =
+  `translate(-${state.camera.x}px, -${state.camera.y}px)`;
+
 }
 
 function updatePlayerPosition(id, x, y) {
