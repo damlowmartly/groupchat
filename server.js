@@ -75,6 +75,15 @@ function handleClientMessage(ws, data) {
     case 'chatMessage':
       handleChatMessage(data);
       break;
+    case 'pickupWeapon':
+      handlePickupWeapon(data);
+      break;
+    case 'playerHide':
+      handlePlayerHide(data);
+      break;
+    case 'toggleDoor':
+      handleToggleDoor(data);
+      break;
   }
 }
 
@@ -302,6 +311,46 @@ function handleChatMessage(data) {
     id: data.id,
     message: data.message,
     emoji: data.emoji
+  });
+}
+
+// ============================================
+// FURNITURE INTERACTIONS
+// ============================================
+function handlePickupWeapon(data) {
+  const player = gameState.players.get(data.playerId);
+  if (!player || !player.alive) return;
+  
+  player.weapon = data.weapon;
+  console.log(`${player.name} picked up ${data.weapon}`);
+  
+  broadcast({
+    type: 'weaponPickup',
+    playerId: data.playerId,
+    weapon: data.weapon
+  });
+}
+
+function handlePlayerHide(data) {
+  const player = gameState.players.get(data.playerId);
+  if (!player || !player.alive) return;
+  
+  player.hiding = true;
+  player.hideLocation = data.location;
+  console.log(`${player.name} is hiding in ${data.location}`);
+  
+  broadcast({
+    type: 'playerHiding',
+    playerId: data.playerId,
+    location: data.location
+  });
+}
+
+function handleToggleDoor(data) {
+  broadcast({
+    type: 'doorToggle',
+    doorId: data.doorId,
+    locked: data.locked
   });
 }
 
