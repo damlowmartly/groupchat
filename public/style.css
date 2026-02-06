@@ -1,5 +1,5 @@
 /* ============================================ */
-/* MYSTERY HOUSE GAME - MOBILE FIRST */
+/* AMONG US STYLE - REALISTIC 2D GRID GAME */
 /* ============================================ */
 
 * {
@@ -13,16 +13,13 @@
   --secondary: #4ecdc4;
   --danger: #e74c3c;
   --success: #2ecc71;
-  --warning: #f39c12;
   --dark: #2c3e50;
-  --light: #ecf0f1;
-  --bg: #1a1a2e;
-  --house-bg: #f5f5dc;
+  --grid-size: 50px; /* Grid cell size */
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-  background: var(--bg);
+  background: #1a1a2e;
   color: white;
   overflow: hidden;
   touch-action: manipulation;
@@ -100,7 +97,6 @@ button:active {
   border: 2px solid #ddd;
   border-radius: 10px;
   font-size: 1rem;
-  transition: border-color 0.2s;
 }
 
 .form-group input[type="text"]:focus {
@@ -138,11 +134,6 @@ button:active {
   transform: scale(1.2);
 }
 
-.avatar-option input[type="radio"]:checked ~ .avatar-label {
-  color: var(--primary);
-  font-weight: 600;
-}
-
 .avatar-option:has(input[type="radio"]:checked) {
   border-color: var(--primary);
   background: #fff5f5;
@@ -157,7 +148,6 @@ button:active {
 .avatar-label {
   font-size: 0.75rem;
   color: #666;
-  transition: color 0.2s;
 }
 
 .btn-primary {
@@ -179,11 +169,10 @@ button:active {
   color: var(--danger);
   font-size: 0.875rem;
   margin-top: 1rem;
-  min-height: 1.25rem;
 }
 
 /* ============================================ */
-/* GAME SCREEN */
+/* GAME SCREEN - AMONG US STYLE */
 /* ============================================ */
 #game-screen {
   display: flex;
@@ -191,23 +180,22 @@ button:active {
   height: 100vh;
   height: 100dvh;
   width: 100vw;
-  background: var(--bg);
+  background: #0f0f1e;
   position: relative;
-  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* ============================================ */
-/* HUD */
+/* HUD - COMPACT TOP BAR */
 /* ============================================ */
 .game-hud {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
-  background: rgba(0, 0, 0, 0.8);
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.9);
   border-bottom: 2px solid var(--primary);
-  z-index: 100;
-  padding-top: max(0.75rem, env(safe-area-inset-top));
+  z-index: 1000;
+  position: relative;
 }
 
 .hud-left, .hud-center, .hud-right {
@@ -221,46 +209,32 @@ button:active {
   align-items: center;
   gap: 0.5rem;
   background: rgba(255, 255, 255, 0.1);
-  padding: 0.375rem 0.75rem;
+  padding: 0.25rem 0.75rem;
   border-radius: 20px;
+  font-size: 0.875rem;
 }
 
 #player-avatar {
-  font-size: 1.5rem;
-}
-
-#player-name-display {
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.role-badge {
-  background: var(--danger);
-  padding: 0.375rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  font-size: 1.25rem;
 }
 
 .timer {
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 0.5rem 1rem;
+  background: rgba(255, 107, 107, 0.2);
+  padding: 0.375rem 0.875rem;
   border-radius: 20px;
   font-weight: 700;
-  font-size: 1.125rem;
+  font-size: 1rem;
 }
 
-.timer-icon {
-  font-size: 1.25rem;
+.role-badge {
+  background: var(--danger);
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.7rem;
+  font-weight: 700;
 }
 
 .players-alive {
@@ -268,103 +242,89 @@ button:active {
   align-items: center;
   gap: 0.375rem;
   background: rgba(255, 255, 255, 0.1);
-  padding: 0.375rem 0.75rem;
-  border-radius: 20px;
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
 /* ============================================ */
-/* GAME CONTAINER / HOUSE */
+/* GAME VIEWPORT - CAMERA FOLLOW */
 /* ============================================ */
 #game-container {
   flex: 1;
-  overflow: hidden;
   position: relative;
-  background: #8b7355; /* Wood floor */
+  overflow: hidden;
+  background: #1a1a2e;
 }
 
-#house-grid {
+#game-viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  position: relative;
-  background-image: 
-    repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 50px),
-    repeating-linear-gradient(90deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 50px);
-  background-size: 50px 50px;
-  background-color: #d4a574; /* Light wood */
+  transition: transform 0.1s linear;
+  will-change: transform;
 }
 
-/* Room Styles */
+/* ============================================ */
+/* HOUSE GRID - REALISTIC LAYOUT */
+/* ============================================ */
+#house-grid {
+  position: absolute;
+  width: 2000px;
+  height: 1500px;
+  background: #8b7355;
+  background-image: 
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 50px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 50px);
+  background-size: 50px 50px;
+}
+
+/* ============================================ */
+/* ROOMS - REALISTIC PLACEMENT */
+/* ============================================ */
 .room {
   position: absolute;
-  border: 4px solid #5d4e37;
-  border-radius: 4px;
   background: rgba(255, 250, 240, 0.95);
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding: 1rem;
-  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.1);
-  overflow: visible;
-}
-
-.room.dark {
-  background: rgba(30, 30, 40, 0.95);
+  border: 5px solid #5d4e37;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.1);
 }
 
 .room.hallway {
-  background: rgba(200, 180, 150, 0.9);
-  border-width: 2px;
+  background: rgba(210, 180, 140, 0.9);
 }
 
 .room-label {
   position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #333;
+  top: 10px;
+  left: 10px;
   background: rgba(255, 255, 255, 0.9);
-  padding: 0.375rem 0.75rem;
+  padding: 0.5rem 1rem;
   border-radius: 8px;
-  border: 2px solid #ddd;
-  z-index: 5;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #333;
+  border: 2px solid #ccc;
+  z-index: 10;
   pointer-events: none;
 }
 
-/* Door */
-.door {
-  position: absolute;
-  width: 12px;
-  height: 40px;
-  background: #8b4513;
-  border: 2px solid #654321;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: background 0.2s;
-  z-index: 4;
-}
-
-.door:hover {
-  background: #a0522d;
-}
-
-.door.locked {
-  background: #666;
-}
-
-/* Furniture & Objects */
+/* ============================================ */
+/* FURNITURE & INTERACTIVE OBJECTS */
+/* ============================================ */
 .furniture {
   position: absolute;
-  font-size: 2rem;
-  z-index: 3;
-  transition: transform 0.2s;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  font-size: 3rem;
   cursor: pointer;
+  transition: transform 0.2s;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  z-index: 5;
 }
 
 .furniture:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
 }
 
 .furniture.weapon {
@@ -372,233 +332,252 @@ button:active {
 }
 
 @keyframes weaponGlow {
-  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
-  50% { filter: drop-shadow(0 0 10px #ff6b6b); }
+  0%, 100% { 
+    filter: drop-shadow(0 0 0 transparent); 
+  }
+  50% { 
+    filter: drop-shadow(0 0 20px #ff0000) drop-shadow(0 0 40px #ff6b6b); 
+  }
 }
 
-/* Interactive furniture labels */
 .furniture-label {
   position: absolute;
-  bottom: -20px;
+  bottom: -30px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.7rem;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   color: white;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.2s;
   pointer-events: none;
+  z-index: 20;
 }
 
 .furniture:hover .furniture-label {
   opacity: 1;
 }
 
-/* Player Avatar */
+/* Interaction prompt */
+.interact-prompt {
+  position: absolute;
+  bottom: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--primary);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  animation: promptBounce 1s infinite;
+  z-index: 25;
+}
+
+.furniture.nearby .interact-prompt {
+  opacity: 1;
+}
+
+@keyframes promptBounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-5px); }
+}
+
+/* ============================================ */
+/* PLAYER AVATARS */
+/* ============================================ */
 .player-avatar {
   position: absolute;
-  font-size: 2.5rem;
+  font-size: 3rem;
   transition: all 0.15s linear;
-  z-index: 10;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  z-index: 100;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+  pointer-events: none;
+}
+
+.player-avatar.own-player {
+  z-index: 150;
+  filter: drop-shadow(0 0 15px rgba(255, 107, 107, 0.8));
 }
 
 .player-avatar.dead {
   opacity: 0.3;
-  filter: grayscale(100%) drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  filter: grayscale(100%);
+}
+
+.player-name {
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Speech Bubble */
 .speech-bubble {
   position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
   background: white;
   color: #333;
-  padding: 0.5rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.875rem;
-  max-width: 150px;
-  word-wrap: break-word;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  z-index: 20;
-  animation: fadeInOut 3s forwards;
+  padding: 0.625rem 1rem;
+  border-radius: 15px;
+  font-size: 1rem;
+  max-width: 200px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 200;
+  animation: bubbleFade 3s forwards;
 }
 
 .speech-bubble::after {
   content: '';
   position: absolute;
-  bottom: -8px;
+  bottom: -10px;
   left: 50%;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 8px solid white;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid white;
 }
 
-@keyframes fadeInOut {
-  0% { opacity: 0; transform: translateY(10px); }
-  10% { opacity: 1; transform: translateY(0); }
-  90% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-10px); }
-}
-
-/* Blood */
-.blood {
-  position: absolute;
-  font-size: 2rem;
-  z-index: 5;
-  cursor: pointer;
-  animation: bloodAppear 0.5s ease;
-}
-
-@keyframes bloodAppear {
-  0% { transform: scale(0); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.blood:hover {
-  transform: scale(1.2);
-}
-
-/* Objects */
-.object {
-  position: absolute;
-  font-size: 1.5rem;
-  z-index: 3;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.object:hover {
-  transform: scale(1.1);
+@keyframes bubbleFade {
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ============================================ */
-/* ACTION BUTTONS */
+/* BLOOD STAIN */
+/* ============================================ */
+.blood {
+  position: absolute;
+  font-size: 3.5rem;
+  z-index: 50;
+  cursor: pointer;
+  animation: bloodAppear 0.8s ease;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+}
+
+@keyframes bloodAppear {
+  0% { 
+    transform: scale(0) rotate(0deg); 
+    opacity: 0; 
+  }
+  100% { 
+    transform: scale(1) rotate(15deg); 
+    opacity: 1; 
+  }
+}
+
+.blood:hover {
+  transform: scale(1.2) rotate(15deg);
+}
+
+/* ============================================ */
+/* ACTION BUTTONS - BOTTOM UI */
 /* ============================================ */
 .action-buttons {
   display: flex;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: rgba(0, 0, 0, 0.8);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 99;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.9);
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  z-index: 999;
+  position: relative;
 }
 
 .action-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.375rem;
   background: rgba(255, 255, 255, 0.1);
   border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 0.625rem 1rem;
+  border-radius: 15px;
+  padding: 0.75rem 1.25rem;
   color: white;
-  min-width: 70px;
+  min-width: 90px;
   transition: all 0.2s;
 }
 
-.action-btn:hover {
+.action-btn:hover:not(.disabled) {
   background: rgba(255, 255, 255, 0.2);
   border-color: var(--primary);
+  transform: translateY(-2px);
 }
 
-.action-btn.hidden {
+.action-btn.disabled {
   opacity: 0.3;
-  pointer-events: none;
+  cursor: not-allowed;
 }
 
 .btn-emoji {
-  font-size: 1.5rem;
+  font-size: 2rem;
 }
 
 .btn-label {
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ============================================ */
-/* MOBILE CONTROLS (D-PAD) - MOBILE ONLY */
+/* MOBILE CONTROLS - TOUCH ONLY */
 /* ============================================ */
 .mobile-controls {
-  position: relative;
-  display: none; /* Hidden by default on desktop */
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 98;
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  position: fixed;
+  bottom: 120px;
+  right: 20px;
+  display: none;
+  z-index: 998;
 }
 
-/* Show only on mobile/tablet */
 @media (max-width: 1024px) {
   .mobile-controls {
-    display: flex;
+    display: block;
   }
 }
 
-.dpad {
+.joystick {
   position: relative;
-  width: 180px;
-  height: 180px;
-  display: grid;
-  grid-template-columns: repeat(3, 60px);
-  grid-template-rows: repeat(3, 60px);
-}
-
-.dpad-btn {
-  background: rgba(255, 255, 255, 0.15);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  font-size: 1.5rem;
-  font-weight: bold;
-  transition: all 0.1s;
-}
-
-.dpad-btn:active {
-  background: var(--primary);
-  border-color: var(--primary);
-  transform: scale(0.95);
-}
-
-.dpad-up {
-  grid-column: 2;
-  grid-row: 1;
-  border-radius: 12px 12px 0 0;
-}
-
-.dpad-left {
-  grid-column: 1;
-  grid-row: 2;
-  border-radius: 12px 0 0 12px;
-}
-
-.dpad-center {
-  grid-column: 2;
-  grid-row: 2;
+  width: 150px;
+  height: 150px;
   background: rgba(255, 255, 255, 0.1);
+  border: 3px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
+  touch-action: none;
+}
+
+.joystick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 107, 107, 0.8);
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.1s;
   pointer-events: none;
-  font-size: 1.25rem;
-}
-
-.dpad-right {
-  grid-column: 3;
-  grid-row: 2;
-  border-radius: 0 12px 12px 0;
-}
-
-.dpad-down {
-  grid-column: 2;
-  grid-row: 3;
-  border-radius: 0 0 12px 12px;
 }
 
 /* ============================================ */
@@ -610,7 +589,7 @@ button:active {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -620,13 +599,13 @@ button:active {
 
 .modal-content {
   background: white;
-  border-radius: 16px;
+  border-radius: 20px;
   width: 100%;
-  max-width: 400px;
-  max-height: 90vh;
+  max-width: 450px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   color: var(--dark);
 }
 
@@ -634,47 +613,48 @@ button:active {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
-  border-bottom: 2px solid #ddd;
+  padding: 1.25rem;
+  border-bottom: 2px solid #e0e0e0;
 }
 
 .modal-header h3 {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 700;
 }
 
 .close-btn {
   background: #f0f0f0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   color: #666;
 }
 
 .modal-body {
   flex: 1;
   overflow-y: auto;
-  padding: 1rem;
+  padding: 1.5rem;
 }
 
 .modal-footer {
   display: flex;
-  gap: 0.5rem;
-  padding: 1rem;
-  border-top: 2px solid #ddd;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-top: 2px solid #e0e0e0;
 }
 
 .btn-secondary {
   flex: 1;
-  padding: 0.75rem;
+  padding: 0.875rem;
   background: #e0e0e0;
   color: var(--dark);
-  border-radius: 10px;
+  border-radius: 12px;
   font-weight: 600;
+  font-size: 0.9375rem;
 }
 
 .modal-footer .btn-primary {
@@ -682,67 +662,65 @@ button:active {
   margin-top: 0;
 }
 
-/* Player List for Accusation */
+/* Player List */
 .player-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .player-item {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1rem;
-  background: #f5f5f5;
-  border-radius: 12px;
+  padding: 1.25rem;
+  background: #f8f8f8;
+  border-radius: 15px;
   cursor: pointer;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   transition: all 0.2s;
 }
 
 .player-item:hover {
-  background: #fff5f5;
+  background: #fff0f0;
   border-color: var(--primary);
+  transform: translateY(-2px);
 }
 
 .player-item-avatar {
-  font-size: 2rem;
-}
-
-.player-item-info {
-  flex: 1;
+  font-size: 2.5rem;
 }
 
 .player-item-name {
-  font-weight: 600;
-  font-size: 1rem;
+  font-weight: 700;
+  font-size: 1.125rem;
 }
 
 .warning-text {
   background: #fff3cd;
   color: #856404;
-  padding: 0.75rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
   font-weight: 600;
   text-align: center;
+  font-size: 0.9375rem;
 }
 
 /* Emoji Picker */
 .emoji-picker {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
 }
 
 .emoji-btn {
   background: #f5f5f5;
-  border: 2px solid #ddd;
-  border-radius: 10px;
-  padding: 0.75rem;
-  font-size: 1.5rem;
+  border: 3px solid #ddd;
+  border-radius: 12px;
+  padding: 1rem;
+  font-size: 2rem;
   transition: all 0.2s;
 }
 
@@ -759,124 +737,52 @@ button:active {
 
 .modal-input {
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.875rem;
   border: 2px solid #ddd;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 1rem;
 }
 
-/* Role Reveal */
-.role-reveal {
-  text-align: center;
-  padding: 2rem 1rem;
-}
-
-.role-reveal .role-emoji {
-  font-size: 5rem;
-  margin-bottom: 1rem;
-  display: block;
-}
-
-.role-reveal .role-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
-
-.role-reveal .role-description {
-  color: #666;
-  line-height: 1.6;
-}
-
-/* Game Over */
-.gameover-message {
+/* Game Over / Waiting */
+.gameover-message, .waiting-message {
   text-align: center;
   padding: 2rem 1rem;
   font-size: 1.25rem;
   font-weight: 600;
-}
-
-.final-stats {
-  background: #f5f5f5;
-  padding: 1rem;
-  border-radius: 12px;
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #ddd;
-}
-
-.stat-item:last-child {
-  border-bottom: none;
+  line-height: 1.6;
 }
 
 /* ============================================ */
-/* MOBILE RESPONSIVE */
+/* RESPONSIVE */
 /* ============================================ */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .avatar-grid {
     grid-template-columns: repeat(2, 1fr);
   }
   
   .game-hud {
-    padding: 0.5rem 0.75rem;
-  }
-  
-  #player-name-display {
-    font-size: 0.75rem;
-  }
-  
-  .timer {
-    font-size: 1rem;
     padding: 0.375rem 0.75rem;
   }
   
+  #player-name-display {
+    display: none;
+  }
+  
   .action-buttons {
-    padding: 0.5rem;
+    gap: 0.5rem;
+    padding: 0.75rem;
   }
   
   .action-btn {
-    min-width: 60px;
-    padding: 0.5rem 0.75rem;
+    min-width: 70px;
+    padding: 0.625rem 1rem;
   }
   
   .btn-emoji {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
   }
   
   .btn-label {
-    font-size: 0.625rem;
-  }
-  
-  .dpad {
-    width: 150px;
-    height: 150px;
-    grid-template-columns: repeat(3, 50px);
-    grid-template-rows: repeat(3, 50px);
-  }
-  
-  .dpad-btn {
-    font-size: 1.25rem;
-  }
-}
-
-/* Landscape mode adjustments */
-@media (max-height: 600px) and (orientation: landscape) {
-  .mobile-controls {
-    padding: 0.5rem;
-  }
-  
-  .dpad {
-    width: 120px;
-    height: 120px;
-    grid-template-columns: repeat(3, 40px);
-    grid-template-rows: repeat(3, 40px);
-  }
-  
-  .action-buttons {
-    padding: 0.5rem;
+    font-size: 0.65rem;
   }
 }
