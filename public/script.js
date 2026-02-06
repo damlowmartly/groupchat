@@ -516,6 +516,14 @@ function setupGameListeners() {
   elements.killBtn.addEventListener('click', handleKill);
   
   document.getElementById('send-chat-btn').addEventListener('click', sendChat);
+  const startBtn = document.getElementById('start-game-btn');
+  if (startBtn) {
+    startBtn.addEventListener('click', () => {
+      sendWS({ type: 'startGame' });
+      elements.roleModal.classList.add('hidden');
+    });
+  }
+
   
   document.querySelectorAll('.modal-close').forEach(btn => {
     btn.addEventListener('click', () => btn.closest('.modal').classList.add('hidden'));
