@@ -617,30 +617,242 @@ function showGameOver(data) {
 }
 
 // ============================================
-// HOUSE CREATION
+// HOUSE CREATION - REALISTIC LAYOUT
 // ============================================
 function createHouse() {
-  // Create rooms with emojis
+  const width = window.innerWidth;
+  const height = window.innerHeight - 200; // Account for HUD and controls
+  
+  // Define rooms with realistic positions
   const rooms = [
-    { emoji: '🏠', label: 'Living Room', x: '10%', y: '20%', width: '35%', height: '40%' },
-    { emoji: '🍳', label: 'Kitchen', x: '55%', y: '20%', width: '35%', height: '30%' },
-    { emoji: '🛏', label: 'Bedroom', x: '55%', y: '55%', width: '35%', height: '35%' },
-    { emoji: '🚪', label: 'Hallway', x: '10%', y: '65%', width: '35%', height: '25%' }
+    // HALLWAY (Center connector)
+    {
+      id: 'hallway',
+      emoji: '🚪',
+      label: 'Hallway',
+      x: width * 0.35,
+      y: height * 0.35,
+      width: width * 0.3,
+      height: height * 0.3,
+      className: 'hallway'
+    },
+    
+    // KITCHEN (Top-left)
+    {
+      id: 'kitchen',
+      emoji: '🍳',
+      label: 'Kitchen',
+      x: width * 0.05,
+      y: height * 0.05,
+      width: width * 0.4,
+      height: height * 0.35
+    },
+    
+    // LIVING ROOM (Top-right)
+    {
+      id: 'living',
+      emoji: '🛋️',
+      label: 'Living Room',
+      x: width * 0.55,
+      y: height * 0.05,
+      width: width * 0.4,
+      height: height * 0.35
+    },
+    
+    // BEDROOM (Bottom-left)
+    {
+      id: 'bedroom',
+      emoji: '🛏',
+      label: 'Bedroom',
+      x: width * 0.05,
+      y: height * 0.6,
+      width: width * 0.4,
+      height: height * 0.35
+    },
+    
+    // BATHROOM (Bottom-right)
+    {
+      id: 'bathroom',
+      emoji: '🚿',
+      label: 'Bathroom',
+      x: width * 0.55,
+      y: height * 0.6,
+      width: width * 0.4,
+      height: height * 0.35
+    }
   ];
   
+  // Create room elements
   rooms.forEach(room => {
     const div = document.createElement('div');
-    div.className = 'room';
-    div.style.left = room.x;
-    div.style.top = room.y;
-    div.style.width = room.width;
-    div.style.height = room.height;
-    div.innerHTML = `
-      <div class="room-label">${room.emoji} ${room.label}</div>
-      <div style="font-size: 4rem; opacity: 0.1;">${room.emoji}</div>
-    `;
+    div.className = `room ${room.className || ''}`;
+    div.id = `room-${room.id}`;
+    div.style.left = `${room.x}px`;
+    div.style.top = `${room.y}px`;
+    div.style.width = `${room.width}px`;
+    div.style.height = `${room.height}px`;
+    div.innerHTML = `<div class="room-label">${room.emoji} ${room.label}</div>`;
     elements.houseGrid.appendChild(div);
   });
+  
+  // Add furniture and objects
+  createFurniture();
+  createDoors();
+}
+
+// ============================================
+// FURNITURE & OBJECTS
+// ============================================
+function createFurniture() {
+  const furniture = [
+    // KITCHEN OBJECTS
+    { emoji: '🔪', label: 'Knife', room: 'kitchen', x: '20%', y: '20%', weapon: true, interaction: 'pickup' },
+    { emoji: '🧊', label: 'Fridge', room: 'kitchen', x: '70%', y: '30%', interaction: 'open' },
+    { emoji: '🍳', label: 'Stove', room: 'kitchen', x: '30%', y: '25%', interaction: 'use' },
+    { emoji: '🪑', label: 'Chair', room: 'kitchen', x: '50%', y: '60%', interaction: 'sit' },
+    { emoji: '🪑', label: 'Chair', room: 'kitchen', x: '60%', y: '70%', interaction: 'sit' },
+    
+    // LIVING ROOM OBJECTS
+    { emoji: '🛋️', label: 'Sofa', room: 'living', x: '50%', y: '50%', interaction: 'sit' },
+    { emoji: '📺', label: 'TV', room: 'living', x: '50%', y: '20%', interaction: 'watch' },
+    { emoji: '☕', label: 'Coffee Table', room: 'living', x: '50%', y: '60%', weapon: true, interaction: 'pickup' },
+    { emoji: '🌷', label: 'Vase', room: 'living', x: '70%', y: '30%', weapon: true, interaction: 'pickup' },
+    
+    // BEDROOM OBJECTS
+    { emoji: '🛏', label: 'Bed', room: 'bedroom', x: '50%', y: '50%', interaction: 'sleep' },
+    { emoji: '🛌', label: 'Pillow', room: 'bedroom', x: '45%', y: '45%', weapon: true, interaction: 'pickup' },
+    { emoji: '🗄', label: 'Closet', room: 'bedroom', x: '80%', y: '50%', interaction: 'hide' },
+    { emoji: '🕯', label: 'Nightstand', room: 'bedroom', x: '65%', y: '40%', interaction: 'inspect' },
+    
+    // BATHROOM OBJECTS
+    { emoji: '🪥', label: 'Sink', room: 'bathroom', x: '30%', y: '40%', interaction: 'use' },
+    { emoji: '🪞', label: 'Mirror', room: 'bathroom', x: '30%', y: '20%', interaction: 'inspect' },
+    { emoji: '🚽', label: 'Toilet', room: 'bathroom', x: '70%', y: '60%', interaction: 'use' },
+    
+    // HALLWAY OBJECTS
+    { emoji: '🌷', label: 'Vase', room: 'hallway', x: '30%', y: '30%', weapon: true, interaction: 'pickup' }
+  ];
+  
+  furniture.forEach(item => {
+    const roomEl = document.getElementById(`room-${item.room}`);
+    if (!roomEl) return;
+    
+    const furnitureEl = document.createElement('div');
+    furnitureEl.className = `furniture ${item.weapon ? 'weapon' : ''}`;
+    furnitureEl.dataset.item = item.label;
+    furnitureEl.dataset.interaction = item.interaction;
+    furnitureEl.style.left = item.x;
+    furnitureEl.style.top = item.y;
+    furnitureEl.textContent = item.emoji;
+    
+    // Add label
+    const label = document.createElement('div');
+    label.className = 'furniture-label';
+    label.textContent = item.label;
+    furnitureEl.appendChild(label);
+    
+    // Click handler
+    furnitureEl.addEventListener('click', () => handleFurnitureClick(item));
+    
+    roomEl.appendChild(furnitureEl);
+  });
+}
+
+// ============================================
+// DOORS
+// ============================================
+function createDoors() {
+  const doors = [
+    // Hallway to Kitchen
+    { from: 'hallway', x: '0%', y: '30%' },
+    // Hallway to Living Room
+    { from: 'hallway', x: '100%', y: '30%' },
+    // Hallway to Bedroom
+    { from: 'hallway', x: '30%', y: '100%' },
+    // Hallway to Bathroom
+    { from: 'hallway', x: '70%', y: '100%' }
+  ];
+  
+  doors.forEach((door, index) => {
+    const roomEl = document.getElementById(`room-${door.from}`);
+    if (!roomEl) return;
+    
+    const doorEl = document.createElement('div');
+    doorEl.className = 'door';
+    doorEl.dataset.doorId = `door-${index}`;
+    doorEl.style.left = door.x;
+    doorEl.style.top = door.y;
+    
+    doorEl.addEventListener('click', () => {
+      doorEl.classList.toggle('locked');
+      const locked = doorEl.classList.contains('locked');
+      sendWS({
+        type: 'toggleDoor',
+        doorId: `door-${index}`,
+        locked: locked
+      });
+    });
+    
+    roomEl.appendChild(doorEl);
+  });
+}
+
+// ============================================
+// FURNITURE INTERACTION
+// ============================================
+function handleFurnitureClick(item) {
+  if (!state.isAlive) return;
+  
+  switch (item.interaction) {
+    case 'pickup':
+      if (item.weapon) {
+        alert(`🔪 You picked up ${item.label}! You can now use it as a weapon.`);
+        sendWS({
+          type: 'pickupWeapon',
+          playerId: state.playerId,
+          weapon: item.label
+        });
+      } else {
+        alert(`📦 You picked up ${item.label}`);
+      }
+      break;
+      
+    case 'sit':
+      alert(`🪑 You sit on the ${item.label} and chill for a moment.`);
+      showChatBubble(state.playerId, '', '😌');
+      break;
+      
+    case 'sleep':
+      alert(`😴 You lie down on the ${item.label} and rest...`);
+      showChatBubble(state.playerId, '', '💤');
+      break;
+      
+    case 'watch':
+      alert(`📺 You watch TV for a while. Relaxing!`);
+      showChatBubble(state.playerId, '', '📺');
+      break;
+      
+    case 'hide':
+      alert(`🗄 You hide in the ${item.label}!`);
+      sendWS({
+        type: 'playerHide',
+        playerId: state.playerId,
+        location: item.label
+      });
+      break;
+      
+    case 'inspect':
+      alert(`🔍 You inspect the ${item.label}. Nothing suspicious here.`);
+      break;
+      
+    case 'open':
+      alert(`🧊 You open the ${item.label}.`);
+      break;
+      
+    case 'use':
+      alert(`✋ You use the ${item.label}.`);
+      break;
+  }
 }
 
 // ============================================
