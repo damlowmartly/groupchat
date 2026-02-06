@@ -1,26 +1,30 @@
 // ============================================
-// MYSTERY HOUSE GAME - CLIENT
+// AMONG US STYLE MYSTERY HOUSE
+// Camera Follow + First Kill = Killer System
 // ============================================
 
 const state = {
   playerId: null,
   playerName: null,
   playerAvatar: null,
-  role: null, // 'killer' or 'innocent'
   isAlive: true,
+  isKiller: false,
+  hasWeapon: false,
+  currentWeapon: null,
   ws: null,
   players: new Map(),
-  position: { x: 100, y: 100 },
-  gridSize: 40,
-  moveInterval: null,
-  currentDirection: null
+  position: { x: 1000, y: 750 }, // Start in center of house
+  camera: { x: 0, y: 0 },
+  moveSpeed: 8,
+  keys: {},
+  nearbyObjects: [],
+  gameStarted: false
 };
 
 const elements = {
   loginScreen: document.getElementById('login-screen'),
   loginForm: document.getElementById('login-form'),
   playerNameInput: document.getElementById('player-name'),
-  loginError: document.getElementById('login-error'),
   
   gameScreen: document.getElementById('game-screen'),
   playerAvatarDisplay: document.getElementById('player-avatar'),
@@ -28,38 +32,30 @@ const elements = {
   roleDisplay: document.getElementById('role-display'),
   timerDisplay: document.getElementById('timer-display'),
   aliveCount: document.getElementById('alive-count'),
+  
+  gameViewport: document.getElementById('game-viewport'),
   houseGrid: document.getElementById('house-grid'),
   
+  useBtn: document.getElementById('interact-btn'),
   killBtn: document.getElementById('kill-btn'),
   accuseBtn: document.getElementById('accuse-btn'),
-  interactBtn: document.getElementById('interact-btn'),
   chatBtn: document.getElementById('chat-btn'),
-  
-  dpadBtns: document.querySelectorAll('.dpad-btn'),
   
   accuseModal: document.getElementById('accuse-modal'),
   chatModal: document.getElementById('chat-modal'),
   gameoverModal: document.getElementById('gameover-modal'),
-  roleModal: document.getElementById('role-modal'),
-  
-  playerList: document.getElementById('player-list'),
-  chatInput: document.getElementById('chat-input'),
-  sendChatBtn: document.getElementById('send-chat-btn'),
-  roleReveal: document.getElementById('role-reveal'),
-  gameoverMessage: document.getElementById('gameover-message'),
-  finalStats: document.getElementById('final-stats'),
-  playAgainBtn: document.getElementById('play-again-btn'),
-  startGameBtn: document.getElementById('start-game-btn')
+  roleModal: document.getElementById('role-modal')
 };
 
 // ============================================
-// INITIALIZATION
+// INIT
 // ============================================
 function init() {
   setupLoginListeners();
   setupGameListeners();
-  setupControls();
-  createHouse();
+  setupKeyboardControls();
+  setupMobileControls();
+  createRealisticHouse();
 }
 
 // ============================================
@@ -72,13 +68,13 @@ function setupLoginListeners() {
     const avatarInput = document.querySelector('input[name="avatar"]:checked');
     
     if (!name || !avatarInput) {
-      elements.loginError.textContent = '❌ Please enter name and choose avatar';
+      document.getElementById('login-error').textContent = '❌ Fill all fields';
       return;
     }
     
     state.playerName = name;
     state.playerAvatar = avatarInput.value;
-    state.playerId = Date.now().toString();
+    state.playerId = Date.now().toString() + Math.random();
     
     showGame();
     initWebSocket();
@@ -90,6 +86,8 @@ function showGame() {
   elements.gameScreen.classList.remove('hidden');
   elements.playerAvatarDisplay.textContent = state.playerAvatar;
   elements.playerNameDisplay.textContent = state.playerName;
+  
+  startGameLoop();
 }
 
 // ============================================
@@ -97,12 +95,10 @@ function showGame() {
 // ============================================
 function initWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}`;
-  
-  state.ws = new WebSocket(wsUrl);
+  state.ws = new WebSocket(`${protocol}//${window.location.host}`);
   
   state.ws.onopen = () => {
-    console.log('Connected to game server');
+    console.log('Connected');
     sendWS({
       type: 'playerJoin',
       id: state.playerId,
@@ -113,19 +109,12 @@ function initWebSocket() {
     });
   };
   
-  state.ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    handleServerMessage(data);
-  };
-  
-  state.ws.onclose = () => {
-    console.log('Disconnected from server');
-    setTimeout(() => initWebSocket(), 3000);
-  };
+  state.ws.onmessage = (e) => handleServerMessage(JSON.parse(e.data));
+  state.ws.onclose = () => setTimeout(() => initWebSocket(), 3000);
 }
 
 function sendWS(data) {
-  if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+  if (state.ws?.readyState === WebSocket.OPEN) {
     state.ws.send(JSON.stringify(data));
   }
 }
@@ -135,14 +124,14 @@ function handleServerMessage(data) {
     case 'gameState':
       updateGameState(data);
       break;
-    case 'roleAssigned':
-      assignRole(data.role, data.targetId);
-      break;
     case 'playerMoved':
       updatePlayerPosition(data.id, data.x, data.y);
       break;
     case 'playerKilled':
       handlePlayerKilled(data);
+      break;
+    case 'firstKill':
+      handleFirstKill(data);
       break;
     case 'playerAccused':
       handleAccusation(data);
@@ -150,187 +139,174 @@ function handleServerMessage(data) {
     case 'chatMessage':
       showChatBubble(data.id, data.message, data.emoji);
       break;
-    case 'gameOver':
-      showGameOver(data);
+    case 'activity':
+      showActivity(data);
       break;
     case 'timerUpdate':
       updateTimer(data.time);
       break;
+    case 'gameOver':
+      showGameOver(data);
+      break;
   }
 }
 
-// ============================================
-// GAME STATE
-// ============================================
 function updateGameState(data) {
-  // Update players
-  data.players.forEach(player => {
-    if (player.id !== state.playerId) {
-      state.players.set(player.id, player);
-      renderPlayer(player);
+  data.players.forEach(p => {
+    if (p.id !== state.playerId) {
+      state.players.set(p.id, p);
+      renderPlayer(p);
     }
   });
   
-  // Update alive count
-  const aliveCount = data.players.filter(p => p.alive).length;
-  elements.aliveCount.textContent = aliveCount;
+  elements.aliveCount.textContent = data.players.filter(p => p.alive).length;
   
-  // Render blood stains
   if (data.bloodStains) {
-    data.bloodStains.forEach(blood => renderBlood(blood.x, blood.y, blood.id));
+    data.bloodStains.forEach(b => renderBlood(b.x, b.y, b.id));
+  }
+  
+  if (data.gameStarted) {
+    state.gameStarted = true;
+    elements.timerDisplay.parentElement.style.display = 'flex';
   }
 }
 
-function assignRole(role, targetId) {
-  state.role = role;
-  
-  const isKiller = role === 'killer';
-  
-  if (isKiller) {
-    elements.roleDisplay.classList.remove('hidden');
-    elements.roleDisplay.textContent = '💀 KILLER';
-    elements.killBtn.classList.remove('hidden');
-  }
-  
-  // Show role reveal
-  elements.roleReveal.innerHTML = `
-    <span class="role-emoji">${isKiller ? '💀' : '🕵️'}</span>
-    <div class="role-title">${isKiller ? 'You are the KILLER!' : 'You are INNOCENT'}</div>
-    <div class="role-description">
-      ${isKiller 
-        ? `Your target: ${targetId ? getPlayerName(targetId) : 'Anyone'}. Kill them before time runs out! Use the ☠️ button when close to a player.`
-        : 'Find the killer and accuse them using the ⚡ button. But be careful - if you\'re wrong, you die!'}
-    </div>
-  `;
-  
-  elements.roleModal.classList.remove('hidden');
-}
-
-function getPlayerName(id) {
-  const player = state.players.get(id);
-  return player ? player.name : 'Unknown';
-}
-
 // ============================================
-// MOVEMENT
+// KEYBOARD CONTROLS
 // ============================================
-function setupControls() {
-  // D-Pad (mobile)
-  elements.dpadBtns.forEach(btn => {
-    const direction = btn.dataset.direction;
-    if (!direction) return;
-    
-    btn.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      startMoving(direction);
-    });
-    
-    btn.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      stopMoving();
-    });
-    
-    btn.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      startMoving(direction);
-    });
-    
-    btn.addEventListener('mouseup', (e) => {
-      e.preventDefault();
-      stopMoving();
-    });
-  });
-  
-  // Keyboard (desktop)
+function setupKeyboardControls() {
   document.addEventListener('keydown', (e) => {
-    if (e.repeat) return;
-    
-    let direction = null;
-    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') direction = 'up';
-    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') direction = 'down';
-    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') direction = 'left';
-    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') direction = 'right';
-    
-    if (direction) {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
       e.preventDefault();
-      startMoving(direction);
+      state.keys[e.key.toLowerCase()] = true;
     }
+    
+    if (e.key.toLowerCase() === 'e') handleUseObject();
+    if (e.key.toLowerCase() === 'q') handleKill();
+    if (e.key === ' ') e.preventDefault();
   });
   
   document.addEventListener('keyup', (e) => {
-    const direction = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D'];
-    if (direction.includes(e.key)) {
-      e.preventDefault();
-      stopMoving();
+    state.keys[e.key.toLowerCase()] = false;
+  });
+}
+
+// ============================================
+// MOBILE JOYSTICK
+// ============================================
+function setupMobileControls() {
+  const joystick = document.querySelector('.joystick');
+  const knob = document.querySelector('.joystick-knob');
+  if (!joystick) return;
+  
+  let active = false;
+  let startX = 0, startY = 0;
+  
+  joystick.addEventListener('touchstart', (e) => {
+    active = true;
+    const touch = e.touches[0];
+    const rect = joystick.getBoundingClientRect();
+    startX = rect.left + rect.width / 2;
+    startY = rect.top + rect.height / 2;
+  });
+  
+  joystick.addEventListener('touchmove', (e) => {
+    if (!active) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    const distance = Math.min(45, Math.sqrt(dx * dx + dy * dy));
+    const angle = Math.atan2(dy, dx);
+    
+    knob.style.transform = `translate(calc(-50% + ${Math.cos(angle) * distance}px), calc(-50% + ${Math.sin(angle) * distance}px))`;
+    
+    state.keys = {};
+    if (Math.abs(dx) > 10) state.keys[dx > 0 ? 'd' : 'a'] = true;
+    if (Math.abs(dy) > 10) state.keys[dy > 0 ? 's' : 'w'] = true;
+  });
+  
+  joystick.addEventListener('touchend', () => {
+    active = false;
+    knob.style.transform = 'translate(-50%, -50%)';
+    state.keys = {};
+  });
+}
+
+// ============================================
+// GAME LOOP - MOVEMENT & CAMERA
+// ============================================
+function startGameLoop() {
+  setInterval(() => {
+    if (!state.isAlive) return;
+    
+    let moved = false;
+    const oldX = state.position.x;
+    const oldY = state.position.y;
+    
+    if (state.keys['arrowup'] || state.keys['w']) {
+      state.position.y = Math.max(50, state.position.y - state.moveSpeed);
+      moved = true;
     }
-  });
-}
-
-function startMoving(direction) {
-  if (state.moveInterval || !state.isAlive) return;
-  
-  state.currentDirection = direction;
-  move();
-  state.moveInterval = setInterval(move, 100);
-}
-
-function stopMoving() {
-  if (state.moveInterval) {
-    clearInterval(state.moveInterval);
-    state.moveInterval = null;
-    state.currentDirection = null;
-  }
-}
-
-function move() {
-  if (!state.currentDirection || !state.isAlive) return;
-  
-  const speed = state.gridSize;
-  let newX = state.position.x;
-  let newY = state.position.y;
-  
-  switch (state.currentDirection) {
-    case 'up':
-      newY = Math.max(50, newY - speed);
-      break;
-    case 'down':
-      newY = Math.min(window.innerHeight - 250, newY + speed);
-      break;
-    case 'left':
-      newX = Math.max(50, newX - speed);
-      break;
-    case 'right':
-      newX = Math.min(window.innerWidth - 50, newX + speed);
-      break;
-  }
-  
-  state.position.x = newX;
-  state.position.y = newY;
-  
-  updateOwnPosition();
-  
-  sendWS({
-    type: 'playerMove',
-    id: state.playerId,
-    x: newX,
-    y: newY
-  });
-  
-  checkNearbyPlayers();
+    if (state.keys['arrowdown'] || state.keys['s']) {
+      state.position.y = Math.min(1450, state.position.y + state.moveSpeed);
+      moved = true;
+    }
+    if (state.keys['arrowleft'] || state.keys['a']) {
+      state.position.x = Math.max(50, state.position.x - state.moveSpeed);
+      moved = true;
+    }
+    if (state.keys['arrowright'] || state.keys['d']) {
+      state.position.x = Math.min(1950, state.position.x + state.moveSpeed);
+      moved = true;
+    }
+    
+    if (moved) {
+      updateOwnPosition();
+      updateCamera();
+      checkNearbyObjects();
+      
+      sendWS({
+        type: 'playerMove',
+        id: state.playerId,
+        x: state.position.x,
+        y: state.position.y
+      });
+    }
+  }, 50); // 20 FPS movement
 }
 
 function updateOwnPosition() {
-  let ownAvatar = document.querySelector(`[data-player-id="${state.playerId}"]`);
-  if (!ownAvatar) {
-    ownAvatar = document.createElement('div');
-    ownAvatar.className = 'player-avatar';
-    ownAvatar.dataset.playerId = state.playerId;
-    ownAvatar.textContent = state.playerAvatar;
-    elements.houseGrid.appendChild(ownAvatar);
+  let avatar = document.querySelector(`[data-player-id="${state.playerId}"]`);
+  if (!avatar) {
+    avatar = document.createElement('div');
+    avatar.className = 'player-avatar own-player';
+    avatar.dataset.playerId = state.playerId;
+    avatar.innerHTML = `
+      ${state.playerAvatar}
+      <div class="player-name">${state.playerName}</div>
+    `;
+    elements.houseGrid.appendChild(avatar);
   }
   
-  ownAvatar.style.left = `${state.position.x}px`;
-  ownAvatar.style.top = `${state.position.y}px`;
+  avatar.style.left = `${state.position.x}px`;
+  avatar.style.top = `${state.position.y}px`;
+}
+
+// CAMERA FOLLOW - Among Us Style!
+function updateCamera() {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight - 150; // Account for HUD
+  
+  // Center camera on player
+  state.camera.x = state.position.x - viewportWidth / 2;
+  state.camera.y = state.position.y - viewportHeight / 2;
+  
+  // Clamp to house bounds
+  state.camera.x = Math.max(0, Math.min(2000 - viewportWidth, state.camera.x));
+  state.camera.y = Math.max(0, Math.min(1500 - viewportHeight, state.camera.y));
+  
+  elements.gameViewport.style.transform = `translate(-${state.camera.x}px, -${state.camera.y}px)`;
 }
 
 function updatePlayerPosition(id, x, y) {
@@ -348,100 +324,133 @@ function renderPlayer(player) {
     avatar = document.createElement('div');
     avatar.className = 'player-avatar';
     avatar.dataset.playerId = player.id;
-    avatar.textContent = player.avatar;
+    avatar.innerHTML = `
+      ${player.avatar}
+      <div class="player-name">${player.name}</div>
+    `;
     elements.houseGrid.appendChild(avatar);
   }
   
   avatar.style.left = `${player.x}px`;
   avatar.style.top = `${player.y}px`;
   
-  if (!player.alive) {
-    avatar.classList.add('dead');
-  }
+  if (!player.alive) avatar.classList.add('dead');
 }
 
 // ============================================
-// GAME ACTIONS
+// NEARBY OBJECTS - INTERACTION
 // ============================================
-function setupGameListeners() {
-  // Kill button
-  elements.killBtn.addEventListener('click', () => {
-    const nearbyPlayer = findNearbyPlayer();
-    if (nearbyPlayer && state.role === 'killer' && state.isAlive) {
-      if (confirm(`Kill ${nearbyPlayer.name}?`)) {
-        sendWS({
-          type: 'killPlayer',
-          killerId: state.playerId,
-          victimId: nearbyPlayer.id,
-          x: nearbyPlayer.x,
-          y: nearbyPlayer.y
-        });
-      }
+function checkNearbyObjects() {
+  state.nearbyObjects = [];
+  const range = 80;
+  
+  document.querySelectorAll('.furniture').forEach(obj => {
+    const objX = parseInt(obj.style.left);
+    const objY = parseInt(obj.style.top);
+    const dx = objX - state.position.x;
+    const dy = objY - state.position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    obj.classList.remove('nearby');
+    if (distance < range) {
+      obj.classList.add('nearby');
+      state.nearbyObjects.push(obj);
     }
   });
   
-  // Accuse button
-  elements.accuseBtn.addEventListener('click', () => {
-    if (!state.isAlive) return;
-    showAccuseModal();
-  });
+  // Update UI
+  if (state.nearbyObjects.length > 0) {
+    elements.useBtn.classList.remove('disabled');
+  } else {
+    elements.useBtn.classList.add('disabled');
+  }
   
-  // Chat button
-  elements.chatBtn.addEventListener('click', () => {
-    if (!state.isAlive) return;
-    elements.chatModal.classList.remove('hidden');
-  });
-  
-  // Send chat
-  elements.sendChatBtn.addEventListener('click', sendChat);
-  
-  // Emoji buttons
-  document.querySelectorAll('.emoji-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
-    });
-  });
-  
-  // Modal close buttons
-  document.querySelectorAll('.modal-close').forEach(btn => {
-    btn.addEventListener('click', () => {
-      btn.closest('.modal').classList.add('hidden');
-    });
-  });
-  
-  // Start game button
-  elements.startGameBtn.addEventListener('click', () => {
-    elements.roleModal.classList.add('hidden');
-  });
-  
-  // Play again button
-  elements.playAgainBtn.addEventListener('click', () => {
-    window.location.reload();
-  });
-}
-
-function checkNearbyPlayers() {
-  const nearby = findNearbyPlayer();
-  if (nearby && state.role === 'killer' && state.isAlive) {
-    elements.killBtn.style.opacity = '1';
-  } else if (state.role === 'killer') {
-    elements.killBtn.style.opacity = '0.5';
+  // Check if can kill
+  const nearPlayer = findNearbyPlayer();
+  if (nearPlayer && state.hasWeapon) {
+    elements.killBtn.classList.remove('disabled');
+  } else {
+    elements.killBtn.classList.add('disabled');
   }
 }
 
 function findNearbyPlayer() {
   const range = 80;
-  for (const [id, player] of state.players) {
-    if (!player.alive) continue;
-    const dx = player.x - state.position.x;
-    const dy = player.y - state.position.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance < range) {
-      return player;
-    }
+  for (const [id, p] of state.players) {
+    if (!p.alive) continue;
+    const dx = p.x - state.position.x;
+    const dy = p.y - state.position.y;
+    if (Math.sqrt(dx * dx + dy * dy) < range) return p;
   }
   return null;
+}
+
+// ============================================
+// OBJECT INTERACTIONS
+// ============================================
+function handleUseObject() {
+  if (state.nearbyObjects.length === 0) return;
+  
+  const obj = state.nearbyObjects[0];
+  const interaction = obj.dataset.interaction;
+  const item = obj.dataset.item;
+  const isWeapon = obj.classList.contains('weapon');
+  
+  switch (interaction) {
+    case 'pickup':
+      if (isWeapon) {
+        state.hasWeapon = true;
+        state.currentWeapon = item;
+        obj.remove();
+        alert(`🔪 You picked up ${item}!`);
+        elements.killBtn.classList.remove('hidden');
+        showChatBubble(state.playerId, '', '🔪');
+      }
+      break;
+    case 'sit':
+      showChatBubble(state.playerId, 'Chilling...', '😌');
+      sendWS({ type: 'activity', playerId: state.playerId, activity: `sitting on ${item}` });
+      break;
+    case 'sleep':
+      showChatBubble(state.playerId, 'Zzz...', '💤');
+      sendWS({ type: 'activity', playerId: state.playerId, activity: `sleeping on ${item}` });
+      break;
+    case 'watch':
+      showChatBubble(state.playerId, 'Watching TV', '📺');
+      sendWS({ type: 'activity', playerId: state.playerId, activity: 'watching TV' });
+      break;
+    case 'eat':
+      showChatBubble(state.playerId, 'Eating', '🍽️');
+      sendWS({ type: 'activity', playerId: state.playerId, activity: 'eating at table' });
+      break;
+    case 'hide':
+      showChatBubble(state.playerId, 'Hiding!', '🫣');
+      sendWS({ type: 'activity', playerId: state.playerId, activity: `hiding in ${item}` });
+      break;
+  }
+}
+
+function showActivity(data) {
+  console.log(`${data.playerId} is ${data.activity}`);
+}
+
+// ============================================
+// KILL SYSTEM - FIRST KILL = KILLER
+// ============================================
+function handleKill() {
+  const nearPlayer = findNearbyPlayer();
+  if (!nearPlayer || !state.hasWeapon) return;
+  
+  if (confirm(`Kill ${nearPlayer.name} with ${state.currentWeapon}?`)) {
+    sendWS({
+      type: 'killPlayer',
+      killerId: state.playerId,
+      victimId: nearPlayer.id,
+      weapon: state.currentWeapon,
+      x: nearPlayer.x,
+      y: nearPlayer.y
+    });
+  }
 }
 
 function handlePlayerKilled(data) {
@@ -453,51 +462,88 @@ function handlePlayerKilled(data) {
   
   if (data.victimId === state.playerId) {
     state.isAlive = false;
-    alert('💀 You have been killed!');
+    alert('💀 You were killed!');
   }
   
   renderBlood(data.x, data.y, `blood-${Date.now()}`);
+}
+
+function handleFirstKill(data) {
+  // First kill happened! Killer is now assigned
+  if (data.killerId === state.playerId) {
+    state.isKiller = true;
+    elements.roleDisplay.classList.remove('hidden');
+    elements.roleDisplay.textContent = '💀 YOU ARE THE KILLER';
+    alert('🔪 You are now THE KILLER! Eliminate everyone before time runs out!');
+  } else {
+    alert(`⚠️ FIRST KILL! Someone is now the killer! Find them!`);
+  }
   
-  // Update alive count
-  const aliveCount = Array.from(state.players.values()).filter(p => p.alive).length + (state.isAlive ? 1 : 0);
-  elements.aliveCount.textContent = aliveCount;
+  state.gameStarted = true;
+  elements.timerDisplay.parentElement.style.display = 'flex';
 }
 
 function renderBlood(x, y, id) {
-  let blood = document.querySelector(`[data-blood-id="${id}"]`);
-  if (!blood) {
-    blood = document.createElement('div');
-    blood.className = 'blood';
-    blood.dataset.bloodId = id;
-    blood.textContent = '🩸';
-    blood.style.left = `${x}px`;
-    blood.style.top = `${y}px`;
-    blood.addEventListener('click', () => {
-      alert('🔍 Blood stain found! Someone was killed here.');
-    });
-    elements.houseGrid.appendChild(blood);
-  }
+  if (document.querySelector(`[data-blood-id="${id}"]`)) return;
+  
+  const blood = document.createElement('div');
+  blood.className = 'blood';
+  blood.dataset.bloodId = id;
+  blood.textContent = '🩸';
+  blood.style.left = `${x}px`;
+  blood.style.top = `${y}px`;
+  blood.addEventListener('click', () => {
+    alert('🔍 A blood stain! Someone was killed here.');
+  });
+  elements.houseGrid.appendChild(blood);
 }
 
 // ============================================
 // ACCUSATION
 // ============================================
-function showAccuseModal() {
-  elements.playerList.innerHTML = '';
+function setupGameListeners() {
+  elements.accuseBtn.addEventListener('click', () => {
+    if (!state.isAlive || !state.gameStarted) return;
+    showAccuseModal();
+  });
   
-  state.players.forEach((player, id) => {
-    if (!player.alive || id === state.playerId) return;
+  elements.chatBtn.addEventListener('click', () => {
+    if (!state.isAlive) return;
+    elements.chatModal.classList.remove('hidden');
+  });
+  
+  elements.useBtn.addEventListener('click', handleUseObject);
+  elements.killBtn.addEventListener('click', handleKill);
+  
+  document.getElementById('send-chat-btn').addEventListener('click', sendChat);
+  
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.modal').classList.add('hidden'));
+  });
+  
+  document.querySelectorAll('.emoji-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+}
+
+function showAccuseModal() {
+  const list = document.getElementById('player-list');
+  list.innerHTML = '';
+  
+  state.players.forEach((p, id) => {
+    if (!p.alive || id === state.playerId) return;
     
     const item = document.createElement('div');
     item.className = 'player-item';
     item.innerHTML = `
-      <div class="player-item-avatar">${player.avatar}</div>
-      <div class="player-item-info">
-        <div class="player-item-name">${player.name}</div>
-      </div>
+      <div class="player-item-avatar">${p.avatar}</div>
+      <div class="player-item-name">${p.name}</div>
     `;
-    item.addEventListener('click', () => accuse(id, player.name));
-    elements.playerList.appendChild(item);
+    item.addEventListener('click', () => accuse(id, p.name));
+    list.appendChild(item);
   });
   
   elements.accuseModal.classList.remove('hidden');
@@ -506,7 +552,7 @@ function showAccuseModal() {
 function accuse(targetId, targetName) {
   elements.accuseModal.classList.add('hidden');
   
-  if (confirm(`Accuse ${targetName} of being the killer?\n\n⚠️ If wrong, YOU DIE!`)) {
+  if (confirm(`Accuse ${targetName}?\n⚠️ If wrong, YOU DIE!`)) {
     sendWS({
       type: 'accusePlayer',
       accuserId: state.playerId,
@@ -516,25 +562,14 @@ function accuse(targetId, targetName) {
 }
 
 function handleAccusation(data) {
-  const accuser = data.accuserId === state.playerId ? 'You' : getPlayerName(data.accuserId);
-  const target = data.targetId === state.playerId ? 'you' : getPlayerName(data.targetId);
+  const accuser = data.accuserId === state.playerId ? 'You' : state.players.get(data.accuserId)?.name;
+  const target = data.targetId === state.playerId ? 'you' : state.players.get(data.targetId)?.name;
   
   if (data.correct) {
-    alert(`✅ ${accuser} correctly accused ${target}! The killer has been found!`);
+    alert(`✅ ${accuser} found the killer: ${target}!`);
   } else {
     alert(`❌ ${accuser} wrongly accused ${target}! ${accuser} died!`);
-    
-    if (data.accuserId === state.playerId) {
-      state.isAlive = false;
-    }
-  }
-  
-  // Update player states
-  const deadId = data.correct ? data.targetId : data.accuserId;
-  const deadPlayer = state.players.get(deadId);
-  if (deadPlayer) {
-    deadPlayer.alive = false;
-    renderPlayer(deadPlayer);
+    if (data.accuserId === state.playerId) state.isAlive = false;
   }
 }
 
@@ -542,45 +577,40 @@ function handleAccusation(data) {
 // CHAT
 // ============================================
 function sendChat() {
-  const selectedEmoji = document.querySelector('.emoji-btn.selected');
-  const text = elements.chatInput.value.trim();
+  const selected = document.querySelector('.emoji-btn.selected');
+  const text = document.getElementById('chat-input').value.trim();
   
-  if (!selectedEmoji && !text) return;
+  if (!selected && !text) return;
   
-  const emoji = selectedEmoji ? selectedEmoji.dataset.emoji : '';
-  const message = text || emoji;
-  
-  sendWS({
-    type: 'chatMessage',
-    id: state.playerId,
-    message: text,
-    emoji: emoji
-  });
+  const emoji = selected?.dataset.emoji || '';
+  sendWS({ type: 'chatMessage', id: state.playerId, message: text, emoji: emoji });
   
   showChatBubble(state.playerId, text, emoji);
   
   elements.chatModal.classList.add('hidden');
-  elements.chatInput.value = '';
+  document.getElementById('chat-input').value = '';
   document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
 }
 
 function showChatBubble(playerId, text, emoji) {
-  const player = playerId === state.playerId ? { x: state.position.x, y: state.position.y } : state.players.get(playerId);
+  const player = playerId === state.playerId 
+    ? { x: state.position.x, y: state.position.y } 
+    : state.players.get(playerId);
   if (!player) return;
+  
+  const avatar = document.querySelector(`[data-player-id="${playerId}"]`);
+  if (!avatar) return;
   
   const bubble = document.createElement('div');
   bubble.className = 'speech-bubble';
   bubble.textContent = `${emoji} ${text}`.trim();
-  bubble.style.left = `${player.x}px`;
-  bubble.style.top = `${player.y - 60}px`;
-  
-  elements.houseGrid.appendChild(bubble);
+  avatar.appendChild(bubble);
   
   setTimeout(() => bubble.remove(), 3000);
 }
 
 // ============================================
-// TIMER
+// TIMER & GAME OVER
 // ============================================
 function updateTimer(seconds) {
   const mins = Math.floor(seconds / 60);
@@ -588,101 +618,36 @@ function updateTimer(seconds) {
   elements.timerDisplay.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// ============================================
-// GAME OVER
-// ============================================
 function showGameOver(data) {
-  elements.gameoverMessage.innerHTML = data.message;
-  
-  elements.finalStats.innerHTML = `
-    <div class="stat-item">
-      <span>Winner:</span>
-      <strong>${data.winner}</strong>
-    </div>
-    <div class="stat-item">
-      <span>Killer was:</span>
-      <strong>${data.killerName}</strong>
-    </div>
-    <div class="stat-item">
-      <span>Victims:</span>
-      <strong>${data.deaths}</strong>
-    </div>
-    <div class="stat-item">
-      <span>Game time:</span>
-      <strong>${data.duration}</strong>
-    </div>
+  document.getElementById('gameover-message').innerHTML = data.message;
+  document.getElementById('final-stats').innerHTML = `
+    <div class="stat-item"><span>Winner:</span><strong>${data.winner}</strong></div>
+    <div class="stat-item"><span>Killer:</span><strong>${data.killerName || 'None'}</strong></div>
+    <div class="stat-item"><span>Kills:</span><strong>${data.kills || 0}</strong></div>
   `;
-  
   elements.gameoverModal.classList.remove('hidden');
 }
 
+document.getElementById('play-again-btn')?.addEventListener('click', () => location.reload());
+
 // ============================================
-// HOUSE CREATION - REALISTIC LAYOUT
+// CREATE REALISTIC HOUSE - AMONG US STYLE
 // ============================================
-function createHouse() {
-  const width = window.innerWidth;
-  const height = window.innerHeight - 200; // Account for HUD and controls
-  
-  // Define rooms with realistic positions
+function createRealisticHouse() {
+  // ROOMS - Realistic placement (2000x1500 house)
   const rooms = [
-    // HALLWAY (Center connector)
-    {
-      id: 'hallway',
-      emoji: '🚪',
-      label: 'Hallway',
-      x: width * 0.35,
-      y: height * 0.35,
-      width: width * 0.3,
-      height: height * 0.3,
-      className: 'hallway'
-    },
-    
-    // KITCHEN (Top-left)
-    {
-      id: 'kitchen',
-      emoji: '🍳',
-      label: 'Kitchen',
-      x: width * 0.05,
-      y: height * 0.05,
-      width: width * 0.4,
-      height: height * 0.35
-    },
-    
-    // LIVING ROOM (Top-right)
-    {
-      id: 'living',
-      emoji: '🛋️',
-      label: 'Living Room',
-      x: width * 0.55,
-      y: height * 0.05,
-      width: width * 0.4,
-      height: height * 0.35
-    },
-    
-    // BEDROOM (Bottom-left)
-    {
-      id: 'bedroom',
-      emoji: '🛏',
-      label: 'Bedroom',
-      x: width * 0.05,
-      y: height * 0.6,
-      width: width * 0.4,
-      height: height * 0.35
-    },
-    
-    // BATHROOM (Bottom-right)
-    {
-      id: 'bathroom',
-      emoji: '🚿',
-      label: 'Bathroom',
-      x: width * 0.55,
-      y: height * 0.6,
-      width: width * 0.4,
-      height: height * 0.35
-    }
+    // Kitchen - Top Left
+    { id: 'kitchen', label: '🍳 Kitchen', x: 100, y: 100, width: 600, height: 500 },
+    // Living Room - Top Right
+    { id: 'living', label: '🛋️ Living Room', x: 800, y: 100, width: 700, height: 500 },
+    // Hallway - Center
+    { id: 'hallway', label: '🚪 Hallway', x: 600, y: 650, width: 500, height: 200, className: 'hallway' },
+    // Bedroom - Bottom Left
+    { id: 'bedroom', label: '🛏 Bedroom', x: 100, y: 900, width: 600, height: 500 },
+    // Bathroom - Bottom Right
+    { id: 'bathroom', label: '🚿 Bathroom', x: 800, y: 900, width: 700, height: 500 }
   ];
   
-  // Create room elements
   rooms.forEach(room => {
     const div = document.createElement('div');
     div.className = `room ${room.className || ''}`;
@@ -691,171 +656,58 @@ function createHouse() {
     div.style.top = `${room.y}px`;
     div.style.width = `${room.width}px`;
     div.style.height = `${room.height}px`;
-    div.innerHTML = `<div class="room-label">${room.emoji} ${room.label}</div>`;
+    div.innerHTML = `<div class="room-label">${room.label}</div>`;
     elements.houseGrid.appendChild(div);
   });
   
-  // Add furniture and objects
-  createFurniture();
-  createDoors();
-}
-
-// ============================================
-// FURNITURE & OBJECTS
-// ============================================
-function createFurniture() {
+  // FURNITURE - Interactive objects
   const furniture = [
-    // KITCHEN OBJECTS
-    { emoji: '🔪', label: 'Knife', room: 'kitchen', x: '20%', y: '20%', weapon: true, interaction: 'pickup' },
-    { emoji: '🧊', label: 'Fridge', room: 'kitchen', x: '70%', y: '30%', interaction: 'open' },
-    { emoji: '🍳', label: 'Stove', room: 'kitchen', x: '30%', y: '25%', interaction: 'use' },
-    { emoji: '🪑', label: 'Chair', room: 'kitchen', x: '50%', y: '60%', interaction: 'sit' },
-    { emoji: '🪑', label: 'Chair', room: 'kitchen', x: '60%', y: '70%', interaction: 'sit' },
+    // KITCHEN
+    { emoji: '🔪', label: 'Knife', room: 'kitchen', x: 250, y: 200, weapon: true, interaction: 'pickup' },
+    { emoji: '🧊', label: 'Fridge', room: 'kitchen', x: 450, y: 250, interaction: 'open' },
+    { emoji: '🍳', label: 'Stove', room: 'kitchen', x: 300, y: 250, interaction: 'use' },
+    { emoji: '🪑', label: 'Chair', room: 'kitchen', x: 350, y: 380, interaction: 'sit' },
+    { emoji: '🍽️', label: 'Table', room: 'kitchen', x: 400, y: 350, interaction: 'eat' },
     
-    // LIVING ROOM OBJECTS
-    { emoji: '🛋️', label: 'Sofa', room: 'living', x: '50%', y: '50%', interaction: 'sit' },
-    { emoji: '📺', label: 'TV', room: 'living', x: '50%', y: '20%', interaction: 'watch' },
-    { emoji: '☕', label: 'Coffee Table', room: 'living', x: '50%', y: '60%', weapon: true, interaction: 'pickup' },
-    { emoji: '🌷', label: 'Vase', room: 'living', x: '70%', y: '30%', weapon: true, interaction: 'pickup' },
+    // LIVING ROOM
+    { emoji: '🛋️', label: 'Sofa', room: 'living', x: 950, y: 300, interaction: 'sit' },
+    { emoji: '📺', label: 'TV', room: 'living', x: 950, y: 180, interaction: 'watch' },
+    { emoji: '☕', label: 'Coffee Table', room: 'living', x: 950, y: 380, weapon: true, interaction: 'pickup' },
+    { emoji: '🌷', label: 'Vase', room: 'living', x: 1200, y: 250, weapon: true, interaction: 'pickup' },
     
-    // BEDROOM OBJECTS
-    { emoji: '🛏', label: 'Bed', room: 'bedroom', x: '50%', y: '50%', interaction: 'sleep' },
-    { emoji: '🛌', label: 'Pillow', room: 'bedroom', x: '45%', y: '45%', weapon: true, interaction: 'pickup' },
-    { emoji: '🗄', label: 'Closet', room: 'bedroom', x: '80%', y: '50%', interaction: 'hide' },
-    { emoji: '🕯', label: 'Nightstand', room: 'bedroom', x: '65%', y: '40%', interaction: 'inspect' },
+    // BEDROOM
+    { emoji: '🛏', label: 'Bed', room: 'bedroom', x: 350, y: 1100, interaction: 'sleep' },
+    { emoji: '🛌', label: 'Pillow', room: 'bedroom', x: 320, y: 1080, weapon: true, interaction: 'pickup' },
+    { emoji: '🗄', label: 'Closet', room: 'bedroom', x: 550, y: 1150, interaction: 'hide' },
+    { emoji: '🕯', label: 'Nightstand', room: 'bedroom', x: 450, y: 1100, interaction: 'inspect' },
     
-    // BATHROOM OBJECTS
-    { emoji: '🪥', label: 'Sink', room: 'bathroom', x: '30%', y: '40%', interaction: 'use' },
-    { emoji: '🪞', label: 'Mirror', room: 'bathroom', x: '30%', y: '20%', interaction: 'inspect' },
-    { emoji: '🚽', label: 'Toilet', room: 'bathroom', x: '70%', y: '60%', interaction: 'use' },
+    // BATHROOM
+    { emoji: '🪥', label: 'Sink', room: 'bathroom', x: 950, y: 1100, interaction: 'use' },
+    { emoji: '🪞', label: 'Mirror', room: 'bathroom', x: 950, y: 1020, interaction: 'inspect' },
+    { emoji: '🚽', label: 'Toilet', room: 'bathroom', x: 1150, y: 1200, interaction: 'use' },
     
-    // HALLWAY OBJECTS
-    { emoji: '🌷', label: 'Vase', room: 'hallway', x: '30%', y: '30%', weapon: true, interaction: 'pickup' }
+    // HALLWAY
+    { emoji: '🌷', label: 'Vase', room: 'hallway', x: 750, y: 720, weapon: true, interaction: 'pickup' }
   ];
   
   furniture.forEach(item => {
     const roomEl = document.getElementById(`room-${item.room}`);
     if (!roomEl) return;
     
-    const furnitureEl = document.createElement('div');
-    furnitureEl.className = `furniture ${item.weapon ? 'weapon' : ''}`;
-    furnitureEl.dataset.item = item.label;
-    furnitureEl.dataset.interaction = item.interaction;
-    furnitureEl.style.left = item.x;
-    furnitureEl.style.top = item.y;
-    furnitureEl.textContent = item.emoji;
+    const obj = document.createElement('div');
+    obj.className = `furniture ${item.weapon ? 'weapon' : ''}`;
+    obj.dataset.item = item.label;
+    obj.dataset.interaction = item.interaction;
+    obj.style.left = `${item.x}px`;
+    obj.style.top = `${item.y}px`;
+    obj.innerHTML = `
+      ${item.emoji}
+      <div class="furniture-label">${item.label}</div>
+      <div class="interact-prompt">Press E</div>
+    `;
     
-    // Add label
-    const label = document.createElement('div');
-    label.className = 'furniture-label';
-    label.textContent = item.label;
-    furnitureEl.appendChild(label);
-    
-    // Click handler
-    furnitureEl.addEventListener('click', () => handleFurnitureClick(item));
-    
-    roomEl.appendChild(furnitureEl);
+    elements.houseGrid.appendChild(obj);
   });
 }
 
-// ============================================
-// DOORS
-// ============================================
-function createDoors() {
-  const doors = [
-    // Hallway to Kitchen
-    { from: 'hallway', x: '0%', y: '30%' },
-    // Hallway to Living Room
-    { from: 'hallway', x: '100%', y: '30%' },
-    // Hallway to Bedroom
-    { from: 'hallway', x: '30%', y: '100%' },
-    // Hallway to Bathroom
-    { from: 'hallway', x: '70%', y: '100%' }
-  ];
-  
-  doors.forEach((door, index) => {
-    const roomEl = document.getElementById(`room-${door.from}`);
-    if (!roomEl) return;
-    
-    const doorEl = document.createElement('div');
-    doorEl.className = 'door';
-    doorEl.dataset.doorId = `door-${index}`;
-    doorEl.style.left = door.x;
-    doorEl.style.top = door.y;
-    
-    doorEl.addEventListener('click', () => {
-      doorEl.classList.toggle('locked');
-      const locked = doorEl.classList.contains('locked');
-      sendWS({
-        type: 'toggleDoor',
-        doorId: `door-${index}`,
-        locked: locked
-      });
-    });
-    
-    roomEl.appendChild(doorEl);
-  });
-}
-
-// ============================================
-// FURNITURE INTERACTION
-// ============================================
-function handleFurnitureClick(item) {
-  if (!state.isAlive) return;
-  
-  switch (item.interaction) {
-    case 'pickup':
-      if (item.weapon) {
-        alert(`🔪 You picked up ${item.label}! You can now use it as a weapon.`);
-        sendWS({
-          type: 'pickupWeapon',
-          playerId: state.playerId,
-          weapon: item.label
-        });
-      } else {
-        alert(`📦 You picked up ${item.label}`);
-      }
-      break;
-      
-    case 'sit':
-      alert(`🪑 You sit on the ${item.label} and chill for a moment.`);
-      showChatBubble(state.playerId, '', '😌');
-      break;
-      
-    case 'sleep':
-      alert(`😴 You lie down on the ${item.label} and rest...`);
-      showChatBubble(state.playerId, '', '💤');
-      break;
-      
-    case 'watch':
-      alert(`📺 You watch TV for a while. Relaxing!`);
-      showChatBubble(state.playerId, '', '📺');
-      break;
-      
-    case 'hide':
-      alert(`🗄 You hide in the ${item.label}!`);
-      sendWS({
-        type: 'playerHide',
-        playerId: state.playerId,
-        location: item.label
-      });
-      break;
-      
-    case 'inspect':
-      alert(`🔍 You inspect the ${item.label}. Nothing suspicious here.`);
-      break;
-      
-    case 'open':
-      alert(`🧊 You open the ${item.label}.`);
-      break;
-      
-    case 'use':
-      alert(`✋ You use the ${item.label}.`);
-      break;
-  }
-}
-
-// ============================================
-// START GAME
-// ============================================
 document.addEventListener('DOMContentLoaded', init);
