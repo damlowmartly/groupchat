@@ -5,18 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>🏠 Mystery House Game</title>
+  <title>🏠 Mystery House - Among Us Style</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- ============================================ -->
   <!-- LOGIN SCREEN -->
-  <!-- ============================================ -->
   <div id="login-screen">
     <div class="login-container">
       <h1>🏠 Mystery House</h1>
-      <p>Choose your avatar and join the game!</p>
+      <p>Explore, chill, and survive!</p>
       
       <form id="login-form">
         <div class="form-group">
@@ -35,7 +33,7 @@
             <label class="avatar-option">
               <input type="radio" name="avatar" value="🕵️‍♂️">
               <span class="avatar-emoji">🕵️‍♂️</span>
-              <span class="avatar-label">Informant</span>
+              <span class="avatar-label">Spy</span>
             </label>
             <label class="avatar-option">
               <input type="radio" name="avatar" value="👨‍💼">
@@ -66,13 +64,11 @@
     </div>
   </div>
 
-  <!-- ============================================ -->
   <!-- GAME SCREEN -->
-  <!-- ============================================ -->
   <div id="game-screen" class="hidden">
     
     <!-- Top HUD -->
-    <div class="game-hud">
+    <header class="game-hud">
       <div class="hud-left">
         <div class="player-info">
           <span id="player-avatar">👮</span>
@@ -82,9 +78,9 @@
       </div>
       
       <div class="hud-center">
-        <div class="timer">
+        <div class="timer" style="display: none;">
           <span class="timer-icon">⏰</span>
-          <span id="timer-display">10:00</span>
+          <span id="timer-display">5:00</span>
         </div>
       </div>
       
@@ -94,52 +90,45 @@
           <span id="alive-count">0</span>
         </div>
       </div>
-    </div>
+    </header>
 
-    <!-- Game Canvas / House -->
+    <!-- Game Viewport with Camera Follow -->
     <div id="game-container">
-      <div id="house-grid">
-        <!-- Rooms will be generated here -->
-        <!-- Players will move around here -->
+      <div id="game-viewport">
+        <div id="house-grid"></div>
       </div>
     </div>
 
-    <!-- Action Buttons (Top of controls) -->
+    <!-- Action Buttons -->
     <div class="action-buttons">
-      <button id="kill-btn" class="action-btn hidden" title="Kill">
-        <span class="btn-emoji">☠️</span>
-        <span class="btn-label">Kill</span>
+      <button id="interact-btn" class="action-btn disabled">
+        <span class="btn-emoji">✋</span>
+        <span class="btn-label">Use (E)</span>
       </button>
-      <button id="accuse-btn" class="action-btn" title="Accuse">
+      <button id="kill-btn" class="action-btn disabled hidden">
+        <span class="btn-emoji">☠️</span>
+        <span class="btn-label">Kill (Q)</span>
+      </button>
+      <button id="accuse-btn" class="action-btn">
         <span class="btn-emoji">⚡</span>
         <span class="btn-label">Accuse</span>
       </button>
-      <button id="interact-btn" class="action-btn" title="Interact">
-        <span class="btn-emoji">✋</span>
-        <span class="btn-label">Use</span>
-      </button>
-      <button id="chat-btn" class="action-btn" title="Chat">
+      <button id="chat-btn" class="action-btn">
         <span class="btn-emoji">💬</span>
         <span class="btn-label">Chat</span>
       </button>
     </div>
 
-    <!-- Mobile Controls -->
+    <!-- Mobile Joystick -->
     <div class="mobile-controls">
-      <div class="dpad">
-        <button class="dpad-btn dpad-up" data-direction="up">▲</button>
-        <button class="dpad-btn dpad-left" data-direction="left">◀</button>
-        <button class="dpad-btn dpad-center">🎮</button>
-        <button class="dpad-btn dpad-right" data-direction="right">▶</button>
-        <button class="dpad-btn dpad-down" data-direction="down">▼</button>
+      <div class="joystick">
+        <div class="joystick-knob"></div>
       </div>
     </div>
 
   </div>
 
-  <!-- ============================================ -->
   <!-- MODALS -->
-  <!-- ============================================ -->
   
   <!-- Accuse Modal -->
   <div id="accuse-modal" class="modal hidden">
@@ -150,9 +139,7 @@
       </div>
       <div class="modal-body">
         <p class="warning-text">⚠️ WARNING: If you're wrong, you die!</p>
-        <div id="player-list" class="player-list">
-          <!-- Players will be listed here -->
-        </div>
+        <div id="player-list" class="player-list"></div>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary modal-close">Cancel</button>
@@ -191,7 +178,7 @@
   <div id="gameover-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 id="gameover-title">🎮 Game Over</h3>
+        <h3>🎮 Game Over</h3>
       </div>
       <div class="modal-body">
         <div id="gameover-message" class="gameover-message"></div>
@@ -199,21 +186,6 @@
       </div>
       <div class="modal-footer">
         <button class="btn-primary" id="play-again-btn">Play Again</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Role Reveal Modal -->
-  <div id="role-modal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>🎭 Your Role</h3>
-      </div>
-      <div class="modal-body">
-        <div id="role-reveal" class="role-reveal"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-primary" id="start-game-btn">Start Game</button>
       </div>
     </div>
   </div>
