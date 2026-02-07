@@ -248,7 +248,6 @@ function handleKillPlayer(data) {
       victimId: data.victimId
     });
     
-    broadcastGameState();
     startTimer();
   }
   
