@@ -13,7 +13,7 @@ const state = {
   currentWeapon: null,
   ws: null,
   players: new Map(),
-  position: { x: 1050, y: 420 },
+  position: { x: 1200, y: 900 },
   camera: { x: 0, y: 0 },
   moveSpeed: 8,
   keys: {},
@@ -60,8 +60,7 @@ function init() {
   setupGameListeners();
   setupKeyboardControls();
   setupMobileControls();
-  createGridMap(); // Hidden collision tiles
-  createRealisticHouse(); // Beautiful visuals
+  createRealisticHouse();
 }
 
 // ===============================================================
@@ -357,14 +356,16 @@ function checkRoomVisibility() {
                    state.position.y <= roomY + roomH;
     
     if (playerInRoom) {
+      // Player is in this room
       state.currentRoom = roomId;
       inRoom = true;
       
       if (!state.exploredRooms.has(room.id)) {
         state.exploredRooms.add(room.id);
       }
-      room.classList.add('explored');
+      room.classList.add('explored'); // REMOVE FOG
       
+      // Show furniture only in current room
       document.querySelectorAll('.furniture').forEach(f => {
         if (f.dataset.room === roomId) {
           f.classList.add('visible');
@@ -373,12 +374,21 @@ function checkRoomVisibility() {
         }
       });
     } else {
-      room.classList.remove('explored');
+      // Player is NOT in this room - darkness returns
+      room.classList.remove('explored'); // ADD FOG BACK
     }
   });
   
+  // If not in any room (hallway), show hallway items
   if (!inRoom) {
     state.currentRoom = null;
+    document.querySelectorAll('.furniture').forEach(f => {
+      if (f.dataset.room === 'hallway') {
+        f.classList.add('visible');
+      } else {
+        f.classList.remove('visible');
+      }
+    });
   }
 }
 
@@ -472,81 +482,80 @@ function findNearbyPlayer() {
 }
 
 // ===============================================================
-// GRID-BASED MAP SYSTEM - EASY TO EDIT!
-// ===============================================================
-
-// TILE DEFINITIONS: number -> emoji + properties
-const TILES = {
-  0: { emoji: '⬛', label: 'Wall', walk: false },
-  1: { emoji: '⬜', label: 'Floor', walk: true },
-  2: { emoji: '🚪', label: 'Door', walk: true },
-  3: { emoji: '🔒', label: 'Locked Door', walk: false },
-  4: { emoji: '🔑', label: 'Key', walk: true },
-  5: { emoji: '🪑', label: 'Furniture', walk: false },
-  6: { emoji: '🔪', label: 'Weapon', walk: true }
-};
-
-// GAME MAP (edit this grid!)
-// Row by row, each number represents a tile type
-// Grid: 40 tiles wide x 28 tiles tall (2400px x 1680px)
-// Rooms: Kitchen (cols 2-11, rows 2-11), Living (cols 14-25, rows 2-11), 
-//        Bedroom (cols 2-11, rows 17-26), Bathroom (cols 14-25, rows 17-26)
-const GAME_MAP = [
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 0 - all walls
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 1 - all walls
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 2 - Kitchen + Living floor with door
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 3
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 4
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 5
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 6
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 7 - SPAWN ROW (kitchen/living)
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 8
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 9
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 10
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 11
-  [0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 12 - door bridge row
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 13 - gap row
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 14 - gap row
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 15 - gap row
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 16 - gap row
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 17 - Bedroom + Bathroom floor start with door
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 18
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 19
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 20
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 21
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 22
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 23
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 24
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 25
-  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 26
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]  // 27 - all walls
-];
-
-const GRID_SIZE = 60; // pixels per tile
-const MAP_WIDTH = GAME_MAP[0].length;
-const MAP_HEIGHT = GAME_MAP.length;
-
-// ===============================================================
-// COLLISION DETECTION - GRID BASED
+// WALL & DOOR COLLISION SYSTEM
 // ===============================================================
 function canPassThroughDoors(newX, newY) {
-  const gridX = Math.floor(newX / GRID_SIZE);
-  const gridY = Math.floor(newY / GRID_SIZE);
+  // Define room boundaries (to check if player is crossing them)
+  const rooms = [
+    { id: 'kitchen', x: 150, y: 150, w: 600, h: 500, doorX: 150, doorY: 350, doorW: 80, doorH: 100 },
+    { id: 'living', x: 850, y: 150, w: 700, h: 550, doorX: 850, doorY: 300, doorW: 80, doorH: 100 },
+    { id: 'bedroom', x: 150, y: 1050, w: 600, h: 600, doorX: 150, doorY: 1300, doorW: 80, doorH: 100 },
+    { id: 'bathroom', x: 850, y: 1050, w: 700, h: 600, doorX: 1050, doorY: 1050, doorW: 80, doorH: 100 }
+  ];
   
-  // Out of bounds
-  if (gridX < 0 || gridX >= MAP_WIDTH || gridY < 0 || gridY >= MAP_HEIGHT) {
-    return false;
+  const playerRadius = 40;
+      const wallThickness = 100; // Double wall thickness
+      const doorPadding = 50; // Extra space around door to pass through
+      
+      // Check each room - if player is trying to enter/exit through walls
+      for (const room of rooms) {
+        // Check if player is inside room boundaries (accounting for double walls)
+        const wasInRoom = state.position.x > room.x + wallThickness && 
+                          state.position.x < room.x + room.w - wallThickness &&
+                          state.position.y > room.y + wallThickness && 
+                          state.position.y < room.y + room.h - wallThickness;
+        
+        const isInRoom = newX > room.x + wallThickness && 
+                         newX < room.x + room.w - wallThickness &&
+                         newY > room.y + wallThickness && 
+                         newY < room.y + room.h - wallThickness;
+        
+        // Player is trying to cross room boundary
+        if (wasInRoom && !isInRoom) {
+          // Trying to exit room - check if exiting through door
+          const doorLeft = room.doorX - doorPadding;
+          const doorRight = room.doorX + room.doorW + doorPadding;
+          const doorTop = room.doorY - doorPadding;
+          const doorBottom = room.doorY + room.doorH + doorPadding;
+          
+          const isAtDoor = newX >= doorLeft && newX <= doorRight &&
+                           newY >= doorTop && newY <= doorBottom;
+          
+          if (!isAtDoor) {
+            // Not at door - blocked by thick wall
+            return false;
+          }
+          
+          // Check if door is locked
+          const door = document.querySelector(`[data-room-id="${room.id}"]`);
+          if (door && door.classList.contains('locked')) {
+            return false; // Door locked, can't exit
+          }
+        }
+        
+        if (!wasInRoom && isInRoom) {
+          // Trying to enter room - check if entering through door
+          const doorLeft = room.doorX - doorPadding;
+          const doorRight = room.doorX + room.doorW + doorPadding;
+          const doorTop = room.doorY - doorPadding;
+          const doorBottom = room.doorY + room.doorH + doorPadding;
+          
+          const isAtDoor = state.position.x >= doorLeft && state.position.x <= doorRight &&
+                           state.position.y >= doorTop && state.position.y <= doorBottom;
+          
+          if (!isAtDoor) {
+            // Not coming from door - blocked by thick wall
+      }
+      
+      // Check if door is locked
+      const door = document.querySelector(`[data-room-id="${room.id}"]`);
+      if (door && door.classList.contains('locked')) {
+        return false; // Door locked, can't enter
+      }
+    }
   }
   
-  const tileType = GAME_MAP[gridY][gridX];
-  const tile = TILES[tileType];
-  
-  // Tile doesn't exist or not walkable
-  if (!tile || !tile.walk) {
-    return false;
-  }
-  
-  return true; // Tile is walkable
+  return true; // Can move
 }
 
 // ===============================================================
@@ -916,13 +925,17 @@ function showAccuseModal() {
 
 function accuse(targetId, targetName) {
   elements.accuseModal.classList.add('hidden');
+  console.log('Accuse triggered for:', targetName);
   
   if (confirm(`Accuse ${targetName}?\n⚠️ If wrong, YOU DIE!`)) {
+    console.log('Sending accusation to server for target:', targetId);
     sendWS({
       type: 'accusePlayer',
       accuserId: state.playerId,
       targetId: targetId
     });
+  } else {
+    console.log('Accusation cancelled by user');
   }
 }
 
@@ -996,39 +1009,13 @@ function showGameOver(data) {
 // ===============================================================
 // CREATE REALISTIC HOUSE WITH DOORS AND KEYS
 // ===============================================================
-// ===============================================================
-// CREATE GRID MAP RENDERER
-// ===============================================================
-function createGridMap() {
-  for (let row = 0; row < MAP_HEIGHT; row++) {
-    for (let col = 0; col < MAP_WIDTH; col++) {
-      const tileType = GAME_MAP[row][col];
-      const tile = TILES[tileType];
-      
-      const div = document.createElement('div');
-      div.className = 'grid-tile';
-      if (!tile.walk) div.classList.add('blocked');
-      div.style.left = `${col * GRID_SIZE}px`;
-      div.style.top = `${row * GRID_SIZE}px`;
-      div.style.width = `${GRID_SIZE}px`;
-      div.style.height = `${GRID_SIZE}px`;
-      div.innerHTML = tile.emoji;
-      div.title = `${tile.label} (walkable: ${tile.walk})`;
-      
-      elements.houseGrid.appendChild(div);
-    }
-  }
-}
-
-// ===============================================================
-// OLD ROOM CREATION - RESTORED FOR VISUALS
-// ===============================================================
 function createRealisticHouse() {
   const rooms = [
-    { id: 'kitchen', label: '🍳 Kitchen', x: 120, y: 120, width: 540, height: 540, className: 'kitchen', doorX: 120, doorY: 300, doorDir: 'left', locked: true },
-    { id: 'living', label: '🛋️ Living Room', x: 840, y: 120, width: 720, height: 600, className: 'living', doorX: 840, doorY: 300, doorDir: 'left', locked: false },
-    { id: 'bedroom', label: '🛏 Bedroom', x: 120, y: 1020, width: 540, height: 600, className: 'bedroom', doorX: 120, doorY: 1260, doorDir: 'left', locked: true },
-    { id: 'bathroom', label: '🚿 Bathroom', x: 840, y: 1020, width: 720, height: 600, className: 'bathroom', doorX: 840, doorY: 1020, doorDir: 'top', locked: false }
+    { id: 'kitchen', label: '🍳 Kitchen', x: 150, y: 150, width: 600, height: 500, className: 'kitchen', doorX: 150, doorY: 350, doorDir: 'left', locked: true },
+    { id: 'living', label: '🛋️ Living Room', x: 850, y: 150, width: 700, height: 550, className: 'living', doorX: 850, doorY: 300, doorDir: 'left', locked: true },
+    { id: 'hallway', label: '🚪 Hallway', x: 650, y: 750, width: 600, height: 250, className: 'hallway' },
+    { id: 'bedroom', label: '🛏 Bedroom', x: 150, y: 1050, width: 600, height: 600, className: 'bedroom', doorX: 150, doorY: 1300, doorDir: 'left', locked: false },
+    { id: 'bathroom', label: '🚿 Bathroom', x: 850, y: 1050, width: 700, height: 600, className: 'bathroom', doorX: 1050, doorY: 1050, doorDir: 'top', locked: false }
   ];
   
   rooms.forEach(room => {
@@ -1043,6 +1030,7 @@ function createRealisticHouse() {
     div.innerHTML = `<div class="room-label">${room.label}</div>`;
     elements.houseGrid.appendChild(div);
     
+    // CREATE DOORS FOR ALL ROOMS EXCEPT HALLWAY
     if (room.doorX !== undefined) {
       const door = document.createElement('div');
       const lockStatus = room.locked ? 'locked' : 'unlocked';
@@ -1052,6 +1040,7 @@ function createRealisticHouse() {
       door.style.left = `${room.doorX}px`;
       door.style.top = `${room.doorY}px`;
       
+      // Determine door label based on lock status
       const doorLabel = '🚪';
       const lockLabel = room.locked ? 'Locked' : 'Unlocked';
       door.innerHTML = `
@@ -1066,48 +1055,57 @@ function createRealisticHouse() {
       
       elements.houseGrid.appendChild(door);
       
+      // Pre-unlock non-locked doors
       if (!room.locked) {
         state.unlockedDoors.push(`door-${room.id}`);
       }
     }
   });
   
+  // FURNITURE
   const furniture = [
-    { emoji: '🔪', label: 'Knife', x: 270, y: 220, weapon: true, interaction: 'pickup', room: 'kitchen' },
-    { emoji: '🧊', label: 'Fridge', x: 470, y: 270, interaction: 'open', room: 'kitchen' },
-    { emoji: '🍳', label: 'Stove', x: 320, y: 250, interaction: 'use', room: 'kitchen' },
-    { emoji: '🪑', label: 'Chair', x: 370, y: 420, interaction: 'sit', room: 'kitchen' },
-    { emoji: '🍽️', label: 'Table', x: 420, y: 390, interaction: 'eat', room: 'kitchen' },
-    { emoji: '🥘', label: 'Pot', x: 250, y: 320, weapon: true, interaction: 'pickup', room: 'kitchen' },
-    { emoji: '🥄', label: 'Spoon', x: 490, y: 250, weapon: true, interaction: 'pickup', room: 'kitchen' },
-    { emoji: '📦', label: 'Cabinets', x: 420, y: 170, interaction: 'use', room: 'kitchen' },
-    { emoji: '🛋️', label: 'Sofa', x: 1040, y: 350, interaction: 'sit', room: 'living' },
-    { emoji: '📺', label: 'TV', x: 1040, y: 200, interaction: 'watch', room: 'living' },
-    { emoji: '☕', label: 'Lamp', x: 1290, y: 290, weapon: true, interaction: 'pickup', room: 'living' },
-    { emoji: '🌷', label: 'Vase', x: 1290, y: 450, weapon: true, interaction: 'pickup', room: 'living' },
-    { emoji: '🔑', label: 'Bedroom Key', x: 940, y: 370, interaction: 'key', room: 'living', keyFor: 'bedroom' },
-    { emoji: '📚', label: 'Bookshelf', x: 890, y: 170, interaction: 'inspect', room: 'living' },
-    { emoji: '🎨', label: 'Painting', x: 1190, y: 120, interaction: 'inspect', room: 'living' },
-    { emoji: '🪴', label: 'Plant', x: 840, y: 470, interaction: 'inspect', room: 'living' },
-    { emoji: '📝', label: 'Note 1', x: 990, y: 470, interaction: 'note', room: 'living', noteId: 'note1' },
-    { emoji: '📄', label: 'Note 2', x: 1090, y: 490, interaction: 'note', room: 'living', noteId: 'note2' },
-    { emoji: '🎮', label: 'Gaming Console', x: 940, y: 220, interaction: 'use', room: 'living' },
-    { emoji: '🛏', label: 'Bed', x: 320, y: 1220, interaction: 'sleep', room: 'bedroom' },
-    { emoji: '🛌', label: 'Pillow', x: 290, y: 1200, weapon: true, interaction: 'pickup', room: 'bedroom' },
-    { emoji: '🗄', label: 'Closet', x: 520, y: 1320, interaction: 'hide', room: 'bedroom' },
-    { emoji: '🕯', label: 'Nightstand', x: 420, y: 1220, interaction: 'inspect', room: 'bedroom' },
-    { emoji: '🧸', label: 'Teddy Bear', x: 350, y: 1170, weapon: true, interaction: 'pickup', room: 'bedroom' },
-    { emoji: '💼', label: 'Suitcase', x: 470, y: 1470, interaction: 'inspect', room: 'bedroom' },
-    { emoji: '🖼️', label: 'Picture Frame', x: 170, y: 1120, interaction: 'inspect', room: 'bedroom' },
-    { emoji: '📖', label: 'Book', x: 520, y: 1170, interaction: 'inspect', room: 'bedroom' },
-    { emoji: '🪥', label: 'Sink', x: 990, y: 1220, interaction: 'use', room: 'bathroom' },
-    { emoji: '🪞', label: 'Mirror', x: 990, y: 1140, interaction: 'inspect', room: 'bathroom' },
-    { emoji: '🚽', label: 'Toilet', x: 1240, y: 1370, interaction: 'use', room: 'bathroom' },
-    { emoji: '🔑', label: 'Kitchen Key', x: 1090, y: 1270, interaction: 'key', room: 'bathroom', keyFor: 'kitchen' },
-    { emoji: '🛁', label: 'Bathtub', x: 1140, y: 1170, interaction: 'use', room: 'bathroom' },
-    { emoji: '🧴', label: 'Soap', x: 1010, y: 1260, weapon: true, interaction: 'pickup', room: 'bathroom' },
-    { emoji: '🧻', label: 'Toilet Paper', x: 1270, y: 1330, weapon: true, interaction: 'pickup', room: 'bathroom' },
-    { emoji: '🧼', label: 'Brush', x: 1170, y: 1070, weapon: true, interaction: 'pickup', room: 'bathroom' }
+    // Kitchen
+    { emoji: '🔪', label: 'Knife', x: 300, y: 250, weapon: true, interaction: 'pickup', room: 'kitchen' },
+    { emoji: '🧊', label: 'Fridge', x: 500, y: 300, interaction: 'open', room: 'kitchen' },
+    { emoji: '🍳', label: 'Stove', x: 350, y: 280, interaction: 'use', room: 'kitchen' },
+    { emoji: '🪑', label: 'Chair', x: 400, y: 450, interaction: 'sit', room: 'kitchen' },
+    { emoji: '🍽️', label: 'Table', x: 450, y: 420, interaction: 'eat', room: 'kitchen' },
+    { emoji: '🥘', label: 'Pot', x: 280, y: 350, weapon: true, interaction: 'pickup', room: 'kitchen' },
+    { emoji: '🥄', label: 'Spoon', x: 520, y: 280, weapon: true, interaction: 'pickup', room: 'kitchen' },
+    { emoji: '📦', label: 'Cabinets', x: 450, y: 200, interaction: 'use', room: 'kitchen' },
+    
+    // Living Room
+    { emoji: '🛋️', label: 'Sofa', x: 1050, y: 380, interaction: 'sit', room: 'living' },
+    { emoji: '📺', label: 'TV', x: 1050, y: 230, interaction: 'watch', room: 'living' },
+    { emoji: '☕', label: 'Lamp', x: 1300, y: 320, weapon: true, interaction: 'pickup', room: 'living' },
+    { emoji: '🌷', label: 'Vase', x: 1300, y: 480, weapon: true, interaction: 'pickup', room: 'living' },
+    { emoji: '🔑', label: 'Bedroom Key', x: 950, y: 400, interaction: 'key', room: 'living', keyFor: 'bedroom' },
+    { emoji: '📚', label: 'Bookshelf', x: 900, y: 200, interaction: 'inspect', room: 'living' },
+    { emoji: '🎨', label: 'Painting', x: 1200, y: 150, interaction: 'inspect', room: 'living' },
+    { emoji: '🪴', label: 'Plant', x: 850, y: 500, interaction: 'inspect', room: 'living' },
+    { emoji: '📝', label: 'Note 1', x: 1000, y: 500, interaction: 'note', room: 'living', noteId: 'note1' },
+    { emoji: '📄', label: 'Note 2', x: 1100, y: 520, interaction: 'note', room: 'living', noteId: 'note2' },
+    { emoji: '🎮', label: 'Gaming Console', x: 950, y: 250, interaction: 'use', room: 'living' },
+    
+    // Bedroom
+    { emoji: '🛏', label: 'Bed', x: 350, y: 1250, interaction: 'sleep', room: 'bedroom' },
+    { emoji: '🛌', label: 'Pillow', x: 320, y: 1230, weapon: true, interaction: 'pickup', room: 'bedroom' },
+    { emoji: '🗄', label: 'Closet', x: 550, y: 1350, interaction: 'hide', room: 'bedroom' },
+    { emoji: '🕯', label: 'Nightstand', x: 450, y: 1250, interaction: 'inspect', room: 'bedroom' },
+    { emoji: '🧸', label: 'Teddy Bear', x: 380, y: 1200, weapon: true, interaction: 'pickup', room: 'bedroom' },
+    { emoji: '💼', label: 'Suitcase', x: 500, y: 1500, interaction: 'inspect', room: 'bedroom' },
+    { emoji: '🖼️', label: 'Picture Frame', x: 200, y: 1150, interaction: 'inspect', room: 'bedroom' },
+    { emoji: '📖', label: 'Book', x: 550, y: 1200, interaction: 'inspect', room: 'bedroom' },
+    
+    // Bathroom
+    { emoji: '🪥', label: 'Sink', x: 1000, y: 1250, interaction: 'use', room: 'bathroom' },
+    { emoji: '🪞', label: 'Mirror', x: 1000, y: 1170, interaction: 'inspect', room: 'bathroom' },
+    { emoji: '🚽', label: 'Toilet', x: 1250, y: 1400, interaction: 'use', room: 'bathroom' },
+    { emoji: '🔑', label: 'Kitchen Key', x: 1100, y: 1300, interaction: 'key', room: 'bathroom', keyFor: 'kitchen' },
+    { emoji: '🛁', label: 'Bathtub', x: 1150, y: 1200, interaction: 'use', room: 'bathroom' },
+    { emoji: '🧴', label: 'Soap', x: 1020, y: 1290, weapon: true, interaction: 'pickup', room: 'bathroom' },
+    { emoji: '🧻', label: 'Toilet Paper', x: 1280, y: 1360, weapon: true, interaction: 'pickup', room: 'bathroom' },
+    { emoji: '🧼', label: 'Brush', x: 1180, y: 1100, weapon: true, interaction: 'pickup', room: 'bathroom' }
   ];
   
   furniture.forEach(item => {
