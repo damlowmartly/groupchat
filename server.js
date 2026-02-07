@@ -1,6 +1,6 @@
-// ============================================
-// MYSTERY HOUSE GAME SERVER
-// ============================================
+// ===============================================================
+// MYSTERY HOUSE SERVER - COMPLETE
+// ===============================================================
 
 const express = require('express');
 const http = require('http');
@@ -11,12 +11,11 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ============================================
+// ===============================================================
 // GAME STATE
-// ============================================
+// ===============================================================
 const gameState = {
   players: new Map(),
   killer: null,
@@ -27,12 +26,12 @@ const gameState = {
   timerInterval: null
 };
 
-// ============================================
+// ===============================================================
 // WEBSOCKET CONNECTION
-// ============================================
+// ===============================================================
 wss.on('connection', (ws) => {
   console.log('New player connected');
-
+  
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
@@ -41,7 +40,7 @@ wss.on('connection', (ws) => {
       console.error('Error processing message:', error);
     }
   });
-
+  
   ws.on('close', () => {
     for (const [id, player] of gameState.players) {
       if (player.ws === ws) {
@@ -54,9 +53,9 @@ wss.on('connection', (ws) => {
   });
 });
 
-// ============================================
-// MESSAGE ROUTER
-// ============================================
+// ===============================================================
+// MESSAGE HANDLERS
+// ===============================================================
 function handleClientMessage(ws, data) {
   switch (data.type) {
     case 'playerJoin':
@@ -77,21 +76,15 @@ function handleClientMessage(ws, data) {
     case 'pickupWeapon':
       handlePickupWeapon(data);
       break;
-    case 'playerHide':
-      handlePlayerHide(data);
-      break;
-    case 'toggleDoor':
-      handleToggleDoor(data);
-      break;
   }
 }
 
-// ============================================
+// ===============================================================
 // PLAYER JOIN
-// ============================================
+// ===============================================================
 function handlePlayerJoin(ws, data) {
   const player = {
-    ws,
+    ws: ws,
     id: data.id,
     name: data.name,
     avatar: data.avatar,
@@ -100,30 +93,37 @@ function handlePlayerJoin(ws, data) {
     alive: true,
     role: null
   };
-
+  
   gameState.players.set(data.id, player);
-  console.log(`${data.name} joined`);
-
+  console.log(`${data.name} joined (${gameState.players.size} players)`);
+  
   sendToPlayer(ws, {
     type: 'gameState',
-    players: Array.from(gameState.players.values()),
+    players: Array.from(gameState.players.values()).map(p => ({
+      id: p.id,
+      name: p.name,
+      avatar: p.avatar,
+      x: p.x,
+      y: p.y,
+      alive: p.alive
+    })),
     bloodStains: gameState.bloodStains,
     gameStarted: gameState.gameStarted
   });
-
+  
   broadcastGameState();
 }
 
-// ============================================
-// PLAYER MOVE
-// ============================================
+// ===============================================================
+// PLAYER MOVEMENT
+// ===============================================================
 function handlePlayerMove(data) {
   const player = gameState.players.get(data.id);
   if (!player || !player.alive) return;
-
+  
   player.x = data.x;
   player.y = data.y;
-
+  
   broadcastExcept(data.id, {
     type: 'playerMoved',
     id: data.id,
@@ -132,114 +132,138 @@ function handlePlayerMove(data) {
   });
 }
 
-// ============================================
-// KILL PLAYER (FIRST KILL CREATES KILLER)
-// ============================================
+// ===============================================================
+// WEAPON PICKUP
+// ===============================================================
+function handlePickupWeapon(data) {
+  console.log(`${data.playerId} picked up ${data.weapon}`);
+  
+  // BROADCAST TO ALL - Weapon disappears globally
+  broadcast({
+    type: 'weaponPickedUp',
+    playerId: data.playerId,
+    weapon: data.weapon,
+    x: data.x,
+    y: data.y
+  });
+}
+
+// ===============================================================
+// KILL PLAYER - FIRST KILL = KILLER
+// ===============================================================
 function handleKillPlayer(data) {
   const killer = gameState.players.get(data.killerId);
   const victim = gameState.players.get(data.victimId);
-
+  
   if (!killer || !victim || !victim.alive) return;
-
+  
+  console.log(`${killer.name} killed ${victim.name} with ${data.weapon}`);
+  
   victim.alive = false;
-
+  
+  // FIRST KILL? This person becomes THE KILLER!
   if (!gameState.firstKillHappened) {
     gameState.firstKillHappened = true;
-    gameState.killer = killer.id;
+    gameState.killer = data.killerId;
     killer.role = 'killer';
     gameState.gameStarted = true;
-    gameState.roundTime = 300;
-    startTimer();
-
+    gameState.roundTime = 300; // 5 minutes
+    
+    console.log(`🔪 FIRST KILL! ${killer.name} is now THE KILLER`);
+    
     broadcast({
       type: 'firstKill',
-      killerId: killer.id,
-      victimId: victim.id
+      killerId: data.killerId,
+      victimId: data.victimId
     });
+    
+    startTimer();
   }
-
+  
   gameState.bloodStains.push({
     id: `blood-${Date.now()}`,
     x: data.x,
     y: data.y
   });
-
+  
   broadcast({
     type: 'playerKilled',
-    killerId: killer.id,
-    victimId: victim.id,
+    killerId: data.killerId,
+    victimId: data.victimId,
     x: data.x,
     y: data.y
   });
-
+  
   checkGameOver();
 }
 
-// ============================================
+// ===============================================================
 // TIMER
-// ============================================
+// ===============================================================
 function startTimer() {
   if (gameState.timerInterval) return;
-
+  
   gameState.timerInterval = setInterval(() => {
     gameState.roundTime--;
-
+    
     broadcast({
       type: 'timerUpdate',
       time: gameState.roundTime
     });
-
+    
     if (gameState.roundTime <= 0) {
-      endGame('innocents', '⏰ Time up! Innocents survived!', null);
+      const killer = gameState.players.get(gameState.killer);
+      endGame('innocents', '⏰ Time up! Innocents survived!', killer?.name);
     }
   }, 1000);
 }
 
-// ============================================
-// CHECK GAME OVER
-// ============================================
-function checkGameOver() {
-  const alive = [...gameState.players.values()].filter(p => p.alive);
-  const innocents = alive.filter(p => p.role !== 'killer');
-
-  if (innocents.length === 0 && gameState.killer) {
-    const killer = gameState.players.get(gameState.killer);
-    endGame('killer', `💀 ${killer?.name} eliminated everyone!`, killer?.name);
-  }
-}
-
-// ============================================
+// ===============================================================
 // ACCUSATION
-// ============================================
+// ===============================================================
 function handleAccusePlayer(data) {
   const accuser = gameState.players.get(data.accuserId);
   const target = gameState.players.get(data.targetId);
-
+  
   if (!accuser || !target || !accuser.alive || !target.alive) return;
-
-  if (target.role === 'killer') {
+  
+  const correct = target.role === 'killer';
+  
+  console.log(`${accuser.name} accused ${target.name} - ${correct ? 'CORRECT' : 'WRONG'}`);
+  
+  if (correct) {
     target.alive = false;
-    endGame('innocents', `⚡ ${accuser.name} caught the killer!`, target.name);
+    
+    broadcast({
+      type: 'playerAccused',
+      accuserId: data.accuserId,
+      targetId: data.targetId,
+      correct: true
+    });
+    
+    const killer = gameState.players.get(gameState.killer);
+    endGame('innocents', `⚡ ${accuser.name} caught the killer!`, killer?.name);
   } else {
     accuser.alive = false;
+    
+    broadcast({
+      type: 'playerAccused',
+      accuserId: data.accuserId,
+      targetId: data.targetId,
+      correct: false
+    });
+    
     checkGameOver();
   }
-
-  broadcast({
-    type: 'playerAccused',
-    accuserId: data.accuserId,
-    targetId: data.targetId,
-    correct: target.role === 'killer'
-  });
 }
 
-// ============================================
+// ===============================================================
 // CHAT
-// ============================================
+// ===============================================================
 function handleChatMessage(data) {
   const player = gameState.players.get(data.id);
   if (!player || !player.alive) return;
-
+  
   broadcast({
     type: 'chatMessage',
     id: data.id,
@@ -248,78 +272,55 @@ function handleChatMessage(data) {
   });
 }
 
-// ============================================
-// INTERACTIONS
-// ============================================
-function handlePickupWeapon(data) {
-  const player = gameState.players.get(data.playerId);
-  if (!player || !player.alive) return;
-
-  player.weapon = data.weapon;
-
-  broadcast({
-    type: 'weaponPickup',
-    playerId: data.playerId,
-    weapon: data.weapon
-  });
-}
-
-function handlePlayerHide(data) {
-  const player = gameState.players.get(data.playerId);
-  if (!player || !player.alive) return;
-
-  broadcast({
-    type: 'playerHiding',
-    playerId: data.playerId,
-    location: data.location
-  });
-}
-
-function handleToggleDoor(data) {
-  broadcast({
-    type: 'doorToggle',
-    doorId: data.doorId,
-    locked: data.locked
-  });
-}
-
-// ============================================
+// ===============================================================
 // GAME OVER
-// ============================================
+// ===============================================================
+function checkGameOver() {
+  const alivePlayers = Array.from(gameState.players.values()).filter(p => p.alive);
+  const aliveInnocents = alivePlayers.filter(p => p.role !== 'killer');
+  
+  if (aliveInnocents.length === 0) {
+    const killer = gameState.players.get(gameState.killer);
+    endGame('killer', `💀 ${killer?.name || 'The Killer'} eliminated everyone!`, killer?.name);
+  }
+}
+
 function endGame(winner, message, killerName) {
   if (gameState.timerInterval) {
     clearInterval(gameState.timerInterval);
     gameState.timerInterval = null;
   }
-
+  
+  const kills = gameState.bloodStains.length;
+  
   broadcast({
     type: 'gameOver',
-    winner,
-    message,
-    killerName,
-    kills: gameState.bloodStains.length
+    winner: winner === 'killer' ? 'KILLER WINS' : 'INNOCENTS WIN',
+    message: message,
+    killerName: killerName,
+    kills: kills
   });
-
+  
   console.log('Game Over:', message);
 }
 
-// ============================================
-// BROADCAST HELPERS
-// ============================================
+// ===============================================================
+// BROADCAST FUNCTIONS
+// ===============================================================
 function broadcast(data) {
-  const msg = JSON.stringify(data);
-  gameState.players.forEach(p => {
-    if (p.ws.readyState === WebSocket.OPEN) {
-      p.ws.send(msg);
+  const message = JSON.stringify(data);
+  gameState.players.forEach(player => {
+    if (player.ws.readyState === WebSocket.OPEN) {
+      player.ws.send(message);
     }
   });
 }
 
 function broadcastExcept(excludeId, data) {
-  const msg = JSON.stringify(data);
-  gameState.players.forEach((p, id) => {
-    if (id !== excludeId && p.ws.readyState === WebSocket.OPEN) {
-      p.ws.send(msg);
+  const message = JSON.stringify(data);
+  gameState.players.forEach((player, id) => {
+    if (id !== excludeId && player.ws.readyState === WebSocket.OPEN) {
+      player.ws.send(message);
     }
   });
 }
@@ -333,15 +334,24 @@ function sendToPlayer(ws, data) {
 function broadcastGameState() {
   broadcast({
     type: 'gameState',
-    players: [...gameState.players.values()],
-    bloodStains: gameState.bloodStains
+    players: Array.from(gameState.players.values()).map(p => ({
+      id: p.id,
+      name: p.name,
+      avatar: p.avatar,
+      x: p.x,
+      y: p.y,
+      alive: p.alive
+    })),
+    bloodStains: gameState.bloodStains,
+    gameStarted: gameState.gameStarted
   });
 }
 
-// ============================================
+// ===============================================================
 // START SERVER
-// ============================================
+// ===============================================================
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🎮 Mystery House running on port ${PORT}`);
+  console.log(`🏠 Game starts on first kill`);
 });
