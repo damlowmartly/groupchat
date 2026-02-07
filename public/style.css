@@ -318,24 +318,9 @@ input, textarea, select {
 /* ================================================= */
 /* ROOMS - FOG OF WAR SYSTEM */
 /* ================================================= */
-.grid-tile {
-  position: absolute;
-  display: none; /* HIDDEN - only for collision detection */
-  align-items: center;
-  justify-content: center;
-  font-size: 40px;
-  border: 1px solid rgba(100, 100, 100, 0.2);
-  user-select: none;
-  pointer-events: none;
-}
-
-.grid-tile.blocked {
-  opacity: 0.8;
-}
-
 .room {
   position: absolute;
-  border: 12px solid #1a1510;
+  border: 6px solid #1a1510;
   box-shadow: 
     inset 0 0 80px rgba(0, 0, 0, 0.8),
     0 0 40px rgba(0, 0, 0, 0.6);
@@ -387,6 +372,10 @@ input, textarea, select {
 .room.explored.bathroom {
   background: 
     repeating-linear-gradient(0deg, rgba(230, 240, 245, 0.95) 0, rgba(230, 240, 245, 0.95) 30px, rgba(220, 230, 235, 0.95) 30px, rgba(220, 230, 235, 0.95) 60px);
+}
+
+.room.explored.hallway {
+  background: rgba(160, 140, 120, 0.9);
 }
 
 .room-label {
