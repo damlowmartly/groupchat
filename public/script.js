@@ -1008,9 +1008,9 @@ function showGameOver(data) {
 function createRealisticHouse() {
   const rooms = [
     { id: 'kitchen', label: '🍳 Kitchen', x: 150, y: 150, width: 600, height: 500, className: 'kitchen', doorX: 150, doorY: 350, doorDir: 'left', locked: true },
-    { id: 'living', label: '🛋️ Living Room', x: 850, y: 150, width: 700, height: 550, className: 'living', doorX: 850, doorY: 300, doorDir: 'left', locked: true },
+    { id: 'living', label: '🛋️ Living Room', x: 850, y: 150, width: 700, height: 550, className: 'living', doorX: 850, doorY: 300, doorDir: 'left', locked: false },
     { id: 'hallway', label: '🚪 Hallway', x: 650, y: 750, width: 600, height: 250, className: 'hallway' },
-    { id: 'bedroom', label: '🛏 Bedroom', x: 150, y: 1050, width: 600, height: 600, className: 'bedroom', doorX: 150, doorY: 1300, doorDir: 'left', locked: false },
+    { id: 'bedroom', label: '🛏 Bedroom', x: 150, y: 1050, width: 600, height: 600, className: 'bedroom', doorX: 150, doorY: 1300, doorDir: 'left', locked: true },
     { id: 'bathroom', label: '🚿 Bathroom', x: 850, y: 1050, width: 700, height: 600, className: 'bathroom', doorX: 1050, doorY: 1050, doorDir: 'top', locked: false }
   ];
   
