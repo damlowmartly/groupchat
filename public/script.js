@@ -485,7 +485,7 @@ function findNearbyPlayer() {
 // WALL & DOOR COLLISION SYSTEM
 // ===============================================================
 function canPassThroughDoors(newX, newY) {
-  // Define room boundaries (to check if player is crossing them)
+  // Define room boundaries (match createRealisticHouse exactly)
   const rooms = [
     { id: 'kitchen', x: 150, y: 150, w: 600, h: 500, doorX: 150, doorY: 350, doorW: 80, doorH: 100 },
     { id: 'living', x: 850, y: 150, w: 700, h: 550, doorX: 850, doorY: 300, doorW: 80, doorH: 100 },
@@ -493,68 +493,64 @@ function canPassThroughDoors(newX, newY) {
     { id: 'bathroom', x: 850, y: 1050, w: 700, h: 600, doorX: 1050, doorY: 1050, doorW: 80, doorH: 100 }
   ];
   
-  const playerRadius = 40;
-      const wallThickness = 100; // Double wall thickness
-      const doorPadding = 50; // Extra space around door to pass through
+  const doorPadding = 50; // Extra space around door to pass through
+  
+  // Check each room - if player is trying to enter/exit through doors only
+  for (const room of rooms) {
+    // Check if player is inside room (full rectangle, no wall buffer)
+    const wasInRoom = state.position.x >= room.x && 
+                      state.position.x <= room.x + room.w &&
+                      state.position.y >= room.y && 
+                      state.position.y <= room.y + room.h;
+    
+    const isInRoom = newX >= room.x && 
+                     newX <= room.x + room.w &&
+                     newY >= room.y && 
+                     newY <= room.y + room.h;
+    
+    // Player is trying to cross room boundary
+    if (wasInRoom && !isInRoom) {
+      // Trying to exit room - check if exiting through door
+      const doorLeft = room.doorX - doorPadding;
+      const doorRight = room.doorX + room.doorW + doorPadding;
+      const doorTop = room.doorY - doorPadding;
+      const doorBottom = room.doorY + room.doorH + doorPadding;
       
-      // Check each room - if player is trying to enter/exit through walls
-      for (const room of rooms) {
-        // Check if player is inside room boundaries (accounting for double walls)
-        const wasInRoom = state.position.x > room.x + wallThickness && 
-                          state.position.x < room.x + room.w - wallThickness &&
-                          state.position.y > room.y + wallThickness && 
-                          state.position.y < room.y + room.h - wallThickness;
-        
-        const isInRoom = newX > room.x + wallThickness && 
-                         newX < room.x + room.w - wallThickness &&
-                         newY > room.y + wallThickness && 
-                         newY < room.y + room.h - wallThickness;
-        
-        // Player is trying to cross room boundary
-        if (wasInRoom && !isInRoom) {
-          // Trying to exit room - check if exiting through door
-          const doorLeft = room.doorX - doorPadding;
-          const doorRight = room.doorX + room.doorW + doorPadding;
-          const doorTop = room.doorY - doorPadding;
-          const doorBottom = room.doorY + room.doorH + doorPadding;
-          
-          const isAtDoor = newX >= doorLeft && newX <= doorRight &&
-                           newY >= doorTop && newY <= doorBottom;
-          
-          if (!isAtDoor) {
-            // Not at door - blocked by thick wall
-            return false;
-          }
-          
-          // Check if door is locked
-          const door = document.querySelector(`[data-room-id="${room.id}"]`);
-          if (door && door.classList.contains('locked')) {
-            return false; // Door locked, can't exit
-          }
-        }
-        
-        if (!wasInRoom && isInRoom) {
-          // Trying to enter room - check if entering through door
-          const doorLeft = room.doorX - doorPadding;
-          const doorRight = room.doorX + room.doorW + doorPadding;
-          const doorTop = room.doorY - doorPadding;
-          const doorBottom = room.doorY + room.doorH + doorPadding;
-          
-          const isAtDoor = state.position.x >= doorLeft && state.position.x <= doorRight &&
-                           state.position.y >= doorTop && state.position.y <= doorBottom;
-          
-          if (!isAtDoor) {
-            // Not coming from door - blocked by thick wall
+      const isAtDoor = newX >= doorLeft && newX <= doorRight &&
+                       newY >= doorTop && newY <= doorBottom;
+      
+      if (!isAtDoor) {
+        // Not at door - blocked by wall
+        return false;
       }
       
-      // Check if door is locked
-      const door = document.querySelector(`[data-room-id="${room.id}"]`);
-      if (door && door.classList.contains('locked')) {
-        return false; // Door locked, can't enter
+      // For kitchen/bedroom, require the key
+      if ((room.id === 'kitchen' || room.id === 'bedroom') && !state.collectedKeys.includes(room.id)) {
+        return false; // Need key to exit this room
+      }
+    }
+    
+    if (!wasInRoom && isInRoom) {
+      // Trying to enter room - check if entering through door
+      const doorLeft = room.doorX - doorPadding;
+      const doorRight = room.doorX + room.doorW + doorPadding;
+      const doorTop = room.doorY - doorPadding;
+      const doorBottom = room.doorY + room.doorH + doorPadding;
+      
+      const isAtDoor = state.position.x >= doorLeft && state.position.x <= doorRight &&
+                       state.position.y >= doorTop && state.position.y <= doorBottom;
+      
+      if (!isAtDoor) {
+        // Not coming from door - blocked by wall
+        return false;
+      }
+      
+      // For kitchen/bedroom, require the key
+      if ((room.id === 'kitchen' || room.id === 'bedroom') && !state.collectedKeys.includes(room.id)) {
+        return false; // Need key to enter this room
       }
     }
   }
-  
   return true; // Can move
 }
 
