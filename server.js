@@ -76,6 +76,18 @@ function handleClientMessage(ws, data) {
     case 'pickupWeapon':
       handlePickupWeapon(data);
       break;
+    case 'pickupKey':
+      handlePickupKey(data);
+      break;
+    case 'doorUnlocked':
+      handleDoorUnlocked(data);
+      break;
+    case 'playerHiding':
+      handlePlayerHiding(data);
+      break;
+    case 'noteFound':
+      handleNoteFound(data);
+      break;
   }
 }
 
@@ -149,6 +161,65 @@ function handlePickupWeapon(data) {
 }
 
 // ===============================================================
+// KEY PICKUP
+// ===============================================================
+function handlePickupKey(data) {
+  console.log(`${data.playerId} picked up ${data.keyFor} key`);
+  
+  // BROADCAST TO ALL - Key disappears globally
+  broadcast({
+    type: 'keyPickedUp',
+    playerId: data.playerId,
+    keyFor: data.keyFor,
+    x: data.x,
+    y: data.y
+  });
+}
+
+// ===============================================================
+// DOOR UNLOCK
+// ===============================================================
+function handleDoorUnlocked(data) {
+  console.log(`${data.roomId} door unlocked`);
+  
+  // BROADCAST TO ALL - Door unlocked
+  broadcast({
+    type: 'doorUnlocked',
+    roomId: data.roomId,
+    doorId: data.doorId
+  });
+}
+
+// ===============================================================
+// HIDING SYSTEM
+// ===============================================================
+function handlePlayerHiding(data) {
+  console.log(`${data.id} is ${data.isHiding ? 'hiding' : 'unhiding'}`);
+  
+  // BROADCAST TO ALL - Player hiding status
+  broadcast({
+    type: 'playerHiding',
+    id: data.id,
+    isHiding: data.isHiding
+  });
+}
+
+// ===============================================================
+// NOTE SYSTEM
+// ===============================================================
+function handleNoteFound(data) {
+  console.log(`Note found at ${data.x}, ${data.y}`);
+  
+  // BROADCAST TO ALL - Note updated
+  broadcast({
+    type: 'noteFound',
+    noteId: data.noteId,
+    x: data.x,
+    y: data.y
+  });
+}
+
+// ===============================================================
 // KILL PLAYER - FIRST KILL = KILLER
 // ===============================================================
 function handleKillPlayer(data) {
@@ -177,6 +248,7 @@ function handleKillPlayer(data) {
       victimId: data.victimId
     });
     
+    broadcastGameState();
     startTimer();
   }
   
