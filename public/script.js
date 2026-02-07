@@ -1,7 +1,7 @@
-// ============================================
-// AMONG US STYLE MYSTERY HOUSE
-// Camera Follow + First Kill = Killer System
-// ============================================
+// ===============================================================
+// MYSTERY HOUSE - COMPLETE GAME SCRIPT
+// Fog of War + Camera Follow + First Kill = Killer + Weapon Sync
+// ===============================================================
 
 const state = {
   playerId: null,
@@ -13,12 +13,13 @@ const state = {
   currentWeapon: null,
   ws: null,
   players: new Map(),
-  position: { x: 1000, y: 750 }, // Start in center of house
+  position: { x: 1200, y: 900 },
   camera: { x: 0, y: 0 },
   moveSpeed: 8,
   keys: {},
   nearbyObjects: [],
-  gameStarted: false
+  gameStarted: false,
+  exploredRooms: new Set() // FOG OF WAR
 };
 
 const elements = {
@@ -33,7 +34,7 @@ const elements = {
   timerDisplay: document.getElementById('timer-display'),
   aliveCount: document.getElementById('alive-count'),
   
-  
+  gameViewport: document.getElementById('game-viewport'),
   houseGrid: document.getElementById('house-grid'),
   
   useBtn: document.getElementById('interact-btn'),
@@ -43,13 +44,12 @@ const elements = {
   
   accuseModal: document.getElementById('accuse-modal'),
   chatModal: document.getElementById('chat-modal'),
-  gameoverModal: document.getElementById('gameover-modal'),
-  roleModal: document.getElementById('role-modal')
+  gameoverModal: document.getElementById('gameover-modal')
 };
 
-// ============================================
+// ===============================================================
 // INIT
-// ============================================
+// ===============================================================
 function init() {
   setupLoginListeners();
   setupGameListeners();
@@ -58,9 +58,9 @@ function init() {
   createRealisticHouse();
 }
 
-// ============================================
+// ===============================================================
 // LOGIN
-// ============================================
+// ===============================================================
 function setupLoginListeners() {
   elements.loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -90,9 +90,9 @@ function showGame() {
   startGameLoop();
 }
 
-// ============================================
+// ===============================================================
 // WEBSOCKET
-// ============================================
+// ===============================================================
 function initWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   state.ws = new WebSocket(`${protocol}//${window.location.host}`);
@@ -139,8 +139,9 @@ function handleServerMessage(data) {
     case 'chatMessage':
       showChatBubble(data.id, data.message, data.emoji);
       break;
-    case 'activity':
-      showActivity(data);
+    case 'weaponPickedUp':
+      // WEAPON GLOBALLY HIDDEN
+      hideWeapon(data.weapon, data.x, data.y);
       break;
     case 'timerUpdate':
       updateTimer(data.time);
@@ -171,19 +172,19 @@ function updateGameState(data) {
   }
 }
 
-// ============================================
+// ===============================================================
 // KEYBOARD CONTROLS
-// ============================================
+// ===============================================================
 function setupKeyboardControls() {
   document.addEventListener('keydown', (e) => {
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
+    const key = e.key.toLowerCase();
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) {
       e.preventDefault();
-      state.keys[e.key.toLowerCase()] = true;
+      state.keys[key] = true;
     }
     
-    if (e.key.toLowerCase() === 'e') handleUseObject();
-    if (e.key.toLowerCase() === 'q') handleKill();
-    if (e.key === ' ') e.preventDefault();
+    if (key === 'e') handleUseObject();
+    if (key === 'q') handleKill();
   });
   
   document.addEventListener('keyup', (e) => {
@@ -191,9 +192,9 @@ function setupKeyboardControls() {
   });
 }
 
-// ============================================
+// ===============================================================
 // MOBILE JOYSTICK
-// ============================================
+// ===============================================================
 function setupMobileControls() {
   const joystick = document.querySelector('.joystick');
   const knob = document.querySelector('.joystick-knob');
@@ -216,7 +217,7 @@ function setupMobileControls() {
     const touch = e.touches[0];
     const dx = touch.clientX - startX;
     const dy = touch.clientY - startY;
-    const distance = Math.min(45, Math.sqrt(dx * dx + dy * dy));
+    const distance = Math.min(55, Math.sqrt(dx * dx + dy * dy));
     const angle = Math.atan2(dy, dx);
     
     knob.style.transform = `translate(calc(-50% + ${Math.cos(angle) * distance}px), calc(-50% + ${Math.sin(angle) * distance}px))`;
@@ -233,23 +234,21 @@ function setupMobileControls() {
   });
 }
 
-// ============================================
+// ===============================================================
 // GAME LOOP - MOVEMENT & CAMERA
-// ============================================
+// ===============================================================
 function startGameLoop() {
   setInterval(() => {
     if (!state.isAlive) return;
     
     let moved = false;
-    const oldX = state.position.x;
-    const oldY = state.position.y;
     
     if (state.keys['arrowup'] || state.keys['w']) {
       state.position.y = Math.max(50, state.position.y - state.moveSpeed);
       moved = true;
     }
     if (state.keys['arrowdown'] || state.keys['s']) {
-      state.position.y = Math.min(1450, state.position.y + state.moveSpeed);
+      state.position.y = Math.min(1750, state.position.y + state.moveSpeed);
       moved = true;
     }
     if (state.keys['arrowleft'] || state.keys['a']) {
@@ -257,13 +256,14 @@ function startGameLoop() {
       moved = true;
     }
     if (state.keys['arrowright'] || state.keys['d']) {
-      state.position.x = Math.min(1950, state.position.x + state.moveSpeed);
+      state.position.x = Math.min(2350, state.position.x + state.moveSpeed);
       moved = true;
     }
     
     if (moved) {
       updateOwnPosition();
       updateCamera();
+      checkRoomVisibility(); // FOG OF WAR
       checkNearbyObjects();
       
       sendWS({
@@ -273,7 +273,7 @@ function startGameLoop() {
         y: state.position.y
       });
     }
-  }, 50); // 20 FPS movement
+  }, 50);
 }
 
 function updateOwnPosition() {
@@ -296,19 +296,35 @@ function updateOwnPosition() {
 // CAMERA FOLLOW - Among Us Style!
 function updateCamera() {
   const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight - 150; // Account for HUD
+  const viewportHeight = window.innerHeight - 200;
   
-  // Center camera on player
   state.camera.x = state.position.x - viewportWidth / 2;
   state.camera.y = state.position.y - viewportHeight / 2;
   
-  // Clamp to house bounds
-  state.camera.x = Math.max(0, Math.min(2000 - viewportWidth, state.camera.x));
-  state.camera.y = Math.max(0, Math.min(1500 - viewportHeight, state.camera.y));
+  state.camera.x = Math.max(0, Math.min(2400 - viewportWidth, state.camera.x));
+  state.camera.y = Math.max(0, Math.min(1800 - viewportHeight, state.camera.y));
   
- elements.houseGrid.style.transform =
-  `translate(-${state.camera.x}px, -${state.camera.y}px)`;
+  elements.gameViewport.style.transform = `translate(-${state.camera.x}px, -${state.camera.y}px)`;
+}
 
+// FOG OF WAR - Reveal rooms as you enter
+function checkRoomVisibility() {
+  document.querySelectorAll('.room').forEach(room => {
+    const roomX = parseInt(room.style.left);
+    const roomY = parseInt(room.style.top);
+    const roomW = parseInt(room.style.width);
+    const roomH = parseInt(room.style.height);
+    
+    const inRoom = state.position.x >= roomX && 
+                   state.position.x <= roomX + roomW &&
+                   state.position.y >= roomY && 
+                   state.position.y <= roomY + roomH;
+    
+    if (inRoom && !state.exploredRooms.has(room.id)) {
+      state.exploredRooms.add(room.id);
+      room.classList.add('explored'); // REMOVE FOG
+    }
+  });
 }
 
 function updatePlayerPosition(id, x, y) {
@@ -339,14 +355,14 @@ function renderPlayer(player) {
   if (!player.alive) avatar.classList.add('dead');
 }
 
-// ============================================
-// NEARBY OBJECTS - INTERACTION
-// ============================================
+// ===============================================================
+// NEARBY OBJECTS
+// ===============================================================
 function checkNearbyObjects() {
   state.nearbyObjects = [];
-  const range = 80;
+  const range = 100;
   
-  document.querySelectorAll('.furniture').forEach(obj => {
+  document.querySelectorAll('.furniture:not(.picked-up)').forEach(obj => {
     const objX = parseInt(obj.style.left);
     const objY = parseInt(obj.style.top);
     const dx = objX - state.position.x;
@@ -360,14 +376,12 @@ function checkNearbyObjects() {
     }
   });
   
-  // Update UI
   if (state.nearbyObjects.length > 0) {
     elements.useBtn.classList.remove('disabled');
   } else {
     elements.useBtn.classList.add('disabled');
   }
   
-  // Check if can kill
   const nearPlayer = findNearbyPlayer();
   if (nearPlayer && state.hasWeapon) {
     elements.killBtn.classList.remove('disabled');
@@ -377,7 +391,7 @@ function checkNearbyObjects() {
 }
 
 function findNearbyPlayer() {
-  const range = 80;
+  const range = 100;
   for (const [id, p] of state.players) {
     if (!p.alive) continue;
     const dx = p.x - state.position.x;
@@ -387,9 +401,9 @@ function findNearbyPlayer() {
   return null;
 }
 
-// ============================================
+// ===============================================================
 // OBJECT INTERACTIONS
-// ============================================
+// ===============================================================
 function handleUseObject() {
   if (state.nearbyObjects.length === 0) return;
   
@@ -401,44 +415,56 @@ function handleUseObject() {
   switch (interaction) {
     case 'pickup':
       if (isWeapon) {
+        // HIDE WEAPON GLOBALLY
+        obj.classList.add('picked-up');
+        
         state.hasWeapon = true;
         state.currentWeapon = item;
-        obj.remove();
         alert(`🔪 You picked up ${item}!`);
         elements.killBtn.classList.remove('hidden');
         showChatBubble(state.playerId, '', '🔪');
+        
+        sendWS({
+          type: 'pickupWeapon',
+          playerId: state.playerId,
+          weapon: item,
+          x: parseInt(obj.style.left),
+          y: parseInt(obj.style.top)
+        });
       }
       break;
     case 'sit':
       showChatBubble(state.playerId, 'Chilling...', '😌');
-      sendWS({ type: 'activity', playerId: state.playerId, activity: `sitting on ${item}` });
       break;
     case 'sleep':
       showChatBubble(state.playerId, 'Zzz...', '💤');
-      sendWS({ type: 'activity', playerId: state.playerId, activity: `sleeping on ${item}` });
       break;
     case 'watch':
       showChatBubble(state.playerId, 'Watching TV', '📺');
-      sendWS({ type: 'activity', playerId: state.playerId, activity: 'watching TV' });
       break;
     case 'eat':
       showChatBubble(state.playerId, 'Eating', '🍽️');
-      sendWS({ type: 'activity', playerId: state.playerId, activity: 'eating at table' });
       break;
     case 'hide':
       showChatBubble(state.playerId, 'Hiding!', '🫣');
-      sendWS({ type: 'activity', playerId: state.playerId, activity: `hiding in ${item}` });
       break;
   }
 }
 
-function showActivity(data) {
-  console.log(`${data.playerId} is ${data.activity}`);
+// WEAPON SYNC - Hide for everyone
+function hideWeapon(weaponName, x, y) {
+  document.querySelectorAll('.furniture').forEach(f => {
+    if (f.dataset.item === weaponName && 
+        parseInt(f.style.left) === x && 
+        parseInt(f.style.top) === y) {
+      f.classList.add('picked-up');
+    }
+  });
 }
 
-// ============================================
-// KILL SYSTEM - FIRST KILL = KILLER
-// ============================================
+// ===============================================================
+// KILL SYSTEM
+// ===============================================================
 function handleKill() {
   const nearPlayer = findNearbyPlayer();
   if (!nearPlayer || !state.hasWeapon) return;
@@ -471,14 +497,13 @@ function handlePlayerKilled(data) {
 }
 
 function handleFirstKill(data) {
-  // First kill happened! Killer is now assigned
   if (data.killerId === state.playerId) {
     state.isKiller = true;
     elements.roleDisplay.classList.remove('hidden');
     elements.roleDisplay.textContent = '💀 YOU ARE THE KILLER';
-    alert('🔪 You are now THE KILLER! Eliminate everyone before time runs out!');
+    alert('🔪 You are now THE KILLER! Eliminate everyone!');
   } else {
-    alert(`⚠️ FIRST KILL! Someone is now the killer! Find them!`);
+    alert(`⚠️ FIRST KILL! Someone is the killer!`);
   }
   
   state.gameStarted = true;
@@ -495,14 +520,14 @@ function renderBlood(x, y, id) {
   blood.style.left = `${x}px`;
   blood.style.top = `${y}px`;
   blood.addEventListener('click', () => {
-    alert('🔍 A blood stain! Someone was killed here.');
+    alert('🔍 Blood stain! Someone was killed here.');
   });
   elements.houseGrid.appendChild(blood);
 }
 
-// ============================================
-// ACCUSATION
-// ============================================
+// ===============================================================
+// GAME LISTENERS
+// ===============================================================
 function setupGameListeners() {
   elements.accuseBtn.addEventListener('click', () => {
     if (!state.isAlive || !state.gameStarted) return;
@@ -518,14 +543,6 @@ function setupGameListeners() {
   elements.killBtn.addEventListener('click', handleKill);
   
   document.getElementById('send-chat-btn').addEventListener('click', sendChat);
-  const startBtn = document.getElementById('start-game-btn');
-  if (startBtn) {
-    startBtn.addEventListener('click', () => {
-      sendWS({ type: 'startGame' });
-      elements.roleModal.classList.add('hidden');
-    });
-  }
-
   
   document.querySelectorAll('.modal-close').forEach(btn => {
     btn.addEventListener('click', () => btn.closest('.modal').classList.add('hidden'));
@@ -537,6 +554,8 @@ function setupGameListeners() {
       btn.classList.add('selected');
     });
   });
+  
+  document.getElementById('play-again-btn')?.addEventListener('click', () => location.reload());
 }
 
 function showAccuseModal() {
@@ -583,9 +602,9 @@ function handleAccusation(data) {
   }
 }
 
-// ============================================
+// ===============================================================
 // CHAT
-// ============================================
+// ===============================================================
 function sendChat() {
   const selected = document.querySelector('.emoji-btn.selected');
   const text = document.getElementById('chat-input').value.trim();
@@ -619,9 +638,9 @@ function showChatBubble(playerId, text, emoji) {
   setTimeout(() => bubble.remove(), 3000);
 }
 
-// ============================================
+// ===============================================================
 // TIMER & GAME OVER
-// ============================================
+// ===============================================================
 function updateTimer(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -638,29 +657,21 @@ function showGameOver(data) {
   elements.gameoverModal.classList.remove('hidden');
 }
 
-document.getElementById('play-again-btn')?.addEventListener('click', () => location.reload());
-
-// ============================================
-// CREATE REALISTIC HOUSE - AMONG US STYLE
-// ============================================
+// ===============================================================
+// CREATE REALISTIC HOUSE
+// ===============================================================
 function createRealisticHouse() {
-  // ROOMS - Realistic placement (2000x1500 house)
   const rooms = [
-    // Kitchen - Top Left
-    { id: 'kitchen', label: '🍳 Kitchen', x: 100, y: 100, width: 600, height: 500 },
-    // Living Room - Top Right
-    { id: 'living', label: '🛋️ Living Room', x: 800, y: 100, width: 700, height: 500 },
-    // Hallway - Center
-    { id: 'hallway', label: '🚪 Hallway', x: 600, y: 650, width: 500, height: 200, className: 'hallway' },
-    // Bedroom - Bottom Left
-    { id: 'bedroom', label: '🛏 Bedroom', x: 100, y: 900, width: 600, height: 500 },
-    // Bathroom - Bottom Right
-    { id: 'bathroom', label: '🚿 Bathroom', x: 800, y: 900, width: 700, height: 500 }
+    { id: 'kitchen', label: '🍳 Kitchen', x: 150, y: 150, width: 600, height: 500, className: 'kitchen' },
+    { id: 'living', label: '🛋️ Living Room', x: 850, y: 150, width: 700, height: 550, className: 'living' },
+    { id: 'hallway', label: '🚪 Hallway', x: 650, y: 750, width: 600, height: 250, className: 'hallway' },
+    { id: 'bedroom', label: '🛏 Bedroom', x: 150, y: 1050, width: 600, height: 600, className: 'bedroom' },
+    { id: 'bathroom', label: '🚿 Bathroom', x: 850, y: 1050, width: 700, height: 600, className: 'bathroom' }
   ];
   
   rooms.forEach(room => {
     const div = document.createElement('div');
-    div.className = `room ${room.className || ''}`;
+    div.className = `room ${room.className}`;
     div.id = `room-${room.id}`;
     div.style.left = `${room.x}px`;
     div.style.top = `${room.y}px`;
@@ -670,40 +681,36 @@ function createRealisticHouse() {
     elements.houseGrid.appendChild(div);
   });
   
-  // FURNITURE - Interactive objects
   const furniture = [
-    // KITCHEN
-    { emoji: '🔪', label: 'Knife', room: 'kitchen', x: 250, y: 200, weapon: true, interaction: 'pickup' },
-    { emoji: '🧊', label: 'Fridge', room: 'kitchen', x: 450, y: 250, interaction: 'open' },
-    { emoji: '🍳', label: 'Stove', room: 'kitchen', x: 300, y: 250, interaction: 'use' },
-    { emoji: '🪑', label: 'Chair', room: 'kitchen', x: 350, y: 380, interaction: 'sit' },
-    { emoji: '🍽️', label: 'Table', room: 'kitchen', x: 400, y: 350, interaction: 'eat' },
+    // Kitchen
+    { emoji: '🔪', label: 'Knife', x: 300, y: 250, weapon: true, interaction: 'pickup' },
+    { emoji: '🧊', label: 'Fridge', x: 500, y: 300, interaction: 'open' },
+    { emoji: '🍳', label: 'Stove', x: 350, y: 280, interaction: 'use' },
+    { emoji: '🪑', label: 'Chair', x: 400, y: 450, interaction: 'sit' },
+    { emoji: '🍽️', label: 'Table', x: 450, y: 420, interaction: 'eat' },
     
-    // LIVING ROOM
-    { emoji: '🛋️', label: 'Sofa', room: 'living', x: 950, y: 300, interaction: 'sit' },
-    { emoji: '📺', label: 'TV', room: 'living', x: 950, y: 180, interaction: 'watch' },
-    { emoji: '☕', label: 'Coffee Table', room: 'living', x: 950, y: 380, weapon: true, interaction: 'pickup' },
-    { emoji: '🌷', label: 'Vase', room: 'living', x: 1200, y: 250, weapon: true, interaction: 'pickup' },
+    // Living Room
+    { emoji: '🛋️', label: 'Sofa', x: 1050, y: 380, interaction: 'sit' },
+    { emoji: '📺', label: 'TV', x: 1050, y: 230, interaction: 'watch' },
+    { emoji: '☕', label: 'Coffee Table', x: 1050, y: 480, weapon: true, interaction: 'pickup' },
+    { emoji: '🌷', label: 'Vase', x: 1300, y: 320, weapon: true, interaction: 'pickup' },
     
-    // BEDROOM
-    { emoji: '🛏', label: 'Bed', room: 'bedroom', x: 350, y: 1100, interaction: 'sleep' },
-    { emoji: '🛌', label: 'Pillow', room: 'bedroom', x: 320, y: 1080, weapon: true, interaction: 'pickup' },
-    { emoji: '🗄', label: 'Closet', room: 'bedroom', x: 550, y: 1150, interaction: 'hide' },
-    { emoji: '🕯', label: 'Nightstand', room: 'bedroom', x: 450, y: 1100, interaction: 'inspect' },
+    // Bedroom
+    { emoji: '🛏', label: 'Bed', x: 350, y: 1250, interaction: 'sleep' },
+    { emoji: '🛌', label: 'Pillow', x: 320, y: 1230, weapon: true, interaction: 'pickup' },
+    { emoji: '🗄', label: 'Closet', x: 550, y: 1350, interaction: 'hide' },
+    { emoji: '🕯', label: 'Nightstand', x: 450, y: 1250, interaction: 'inspect' },
     
-    // BATHROOM
-    { emoji: '🪥', label: 'Sink', room: 'bathroom', x: 950, y: 1100, interaction: 'use' },
-    { emoji: '🪞', label: 'Mirror', room: 'bathroom', x: 950, y: 1020, interaction: 'inspect' },
-    { emoji: '🚽', label: 'Toilet', room: 'bathroom', x: 1150, y: 1200, interaction: 'use' },
+    // Bathroom
+    { emoji: '🪥', label: 'Sink', x: 1000, y: 1250, interaction: 'use' },
+    { emoji: '🪞', label: 'Mirror', x: 1000, y: 1170, interaction: 'inspect' },
+    { emoji: '🚽', label: 'Toilet', x: 1250, y: 1400, interaction: 'use' },
     
-    // HALLWAY
-    { emoji: '🌷', label: 'Vase', room: 'hallway', x: 750, y: 720, weapon: true, interaction: 'pickup' }
+    // Hallway
+    { emoji: '🌷', label: 'Vase', x: 850, y: 850, weapon: true, interaction: 'pickup' }
   ];
   
   furniture.forEach(item => {
-    const roomEl = document.getElementById(`room-${item.room}`);
-    if (!roomEl) return;
-    
     const obj = document.createElement('div');
     obj.className = `furniture ${item.weapon ? 'weapon' : ''}`;
     obj.dataset.item = item.label;
