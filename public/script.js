@@ -13,13 +13,17 @@ const state = {
   currentWeapon: null,
   ws: null,
   players: new Map(),
-  position: { x: 1200, y: 900 },
+  position: { x: 1050, y: 420 },
   camera: { x: 0, y: 0 },
   moveSpeed: 8,
   keys: {},
   nearbyObjects: [],
   gameStarted: false,
-  exploredRooms: new Set() // FOG OF WAR
+  exploredRooms: new Set(), // FOG OF WAR
+  collectedKeys: [], // KEYS COLLECTED
+  currentRoom: null, // CURRENT ROOM PLAYER IS IN
+  unlockedDoors: [], // DOORS PLAYER HAS UNLOCKED
+  isHiding: false // HIDING IN CLOSET
 };
 
 const elements = {
@@ -33,6 +37,7 @@ const elements = {
   roleDisplay: document.getElementById('role-display'),
   timerDisplay: document.getElementById('timer-display'),
   aliveCount: document.getElementById('alive-count'),
+  keysDisplay: document.getElementById('keys-display'),
   
   gameViewport: document.getElementById('game-viewport'),
   houseGrid: document.getElementById('house-grid'),
@@ -55,7 +60,8 @@ function init() {
   setupGameListeners();
   setupKeyboardControls();
   setupMobileControls();
-  createRealisticHouse();
+  createGridMap(); // Hidden collision tiles
+  createRealisticHouse(); // Beautiful visuals
 }
 
 // ===============================================================
@@ -142,6 +148,22 @@ function handleServerMessage(data) {
     case 'weaponPickedUp':
       // WEAPON GLOBALLY HIDDEN
       hideWeapon(data.weapon, data.x, data.y);
+      break;
+    case 'keyPickedUp':
+      // KEY GLOBALLY HIDDEN
+      hideKey(data.keyFor, data.x, data.y);
+      break;
+    case 'doorUnlocked':
+      // DOOR UNLOCKED FOR ALL PLAYERS
+      unlockDoorGlobally(data.roomId, data.doorId);
+      break;
+    case 'playerHiding':
+      // PLAYER HIDING/UNHIDING
+      handlePlayerHideStatus(data.id, data.isHiding);
+      break;
+    case 'noteFound':
+      // NOTE PICKED UP
+      hideNote(data.x, data.y);
       break;
     case 'timerUpdate':
       updateTimer(data.time);
@@ -242,22 +264,33 @@ function startGameLoop() {
     if (!state.isAlive) return;
     
     let moved = false;
+    let newX = state.position.x;
+    let newY = state.position.y;
     
     if (state.keys['arrowup'] || state.keys['w']) {
-      state.position.y = Math.max(50, state.position.y - state.moveSpeed);
+      newY = Math.max(50, state.position.y - state.moveSpeed);
       moved = true;
     }
     if (state.keys['arrowdown'] || state.keys['s']) {
-      state.position.y = Math.min(1750, state.position.y + state.moveSpeed);
+      newY = Math.min(1750, state.position.y + state.moveSpeed);
       moved = true;
     }
     if (state.keys['arrowleft'] || state.keys['a']) {
-      state.position.x = Math.max(50, state.position.x - state.moveSpeed);
+      newX = Math.max(50, state.position.x - state.moveSpeed);
       moved = true;
     }
     if (state.keys['arrowright'] || state.keys['d']) {
-      state.position.x = Math.min(2350, state.position.x + state.moveSpeed);
+      newX = Math.min(2350, state.position.x + state.moveSpeed);
       moved = true;
+    }
+    
+    // CHECK DOOR COLLISIONS
+    if (moved) {
+      const canMove = canPassThroughDoors(newX, newY);
+      if (canMove) {
+        state.position.x = newX;
+        state.position.y = newY;
+      }
     }
     
     if (moved) {
@@ -307,24 +340,46 @@ function updateCamera() {
   elements.gameViewport.style.transform = `translate(-${state.camera.x}px, -${state.camera.y}px)`;
 }
 
-// FOG OF WAR - Reveal rooms as you enter
+// FOG OF WAR - Reveal rooms as you enter, darkness when leaving
 function checkRoomVisibility() {
+  let inRoom = false;
+  
   document.querySelectorAll('.room').forEach(room => {
     const roomX = parseInt(room.style.left);
     const roomY = parseInt(room.style.top);
     const roomW = parseInt(room.style.width);
     const roomH = parseInt(room.style.height);
+    const roomId = room.dataset.roomId;
     
-    const inRoom = state.position.x >= roomX && 
+    const playerInRoom = state.position.x >= roomX && 
                    state.position.x <= roomX + roomW &&
                    state.position.y >= roomY && 
                    state.position.y <= roomY + roomH;
     
-    if (inRoom && !state.exploredRooms.has(room.id)) {
-      state.exploredRooms.add(room.id);
-      room.classList.add('explored'); // REMOVE FOG
+    if (playerInRoom) {
+      state.currentRoom = roomId;
+      inRoom = true;
+      
+      if (!state.exploredRooms.has(room.id)) {
+        state.exploredRooms.add(room.id);
+      }
+      room.classList.add('explored');
+      
+      document.querySelectorAll('.furniture').forEach(f => {
+        if (f.dataset.room === roomId) {
+          f.classList.add('visible');
+        } else {
+          f.classList.remove('visible');
+        }
+      });
+    } else {
+      room.classList.remove('explored');
     }
   });
+  
+  if (!inRoom) {
+    state.currentRoom = null;
+  }
 }
 
 function updatePlayerPosition(id, x, y) {
@@ -356,13 +411,14 @@ function renderPlayer(player) {
 }
 
 // ===============================================================
-// NEARBY OBJECTS
+// NEARBY OBJECTS & DOORS
 // ===============================================================
 function checkNearbyObjects() {
   state.nearbyObjects = [];
   const range = 100;
   
-  document.querySelectorAll('.furniture:not(.picked-up)').forEach(obj => {
+  // Check for nearby furniture
+  document.querySelectorAll('.furniture.visible:not(.picked-up)').forEach(obj => {
     const objX = parseInt(obj.style.left);
     const objY = parseInt(obj.style.top);
     const dx = objX - state.position.x;
@@ -373,6 +429,20 @@ function checkNearbyObjects() {
     if (distance < range) {
       obj.classList.add('nearby');
       state.nearbyObjects.push(obj);
+    }
+  });
+  
+  // Check for nearby doors
+  document.querySelectorAll('.door').forEach(door => {
+    const doorX = parseInt(door.style.left);
+    const doorY = parseInt(door.style.top);
+    const dx = doorX - state.position.x;
+    const dy = doorY - state.position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    door.classList.remove('nearby');
+    if (distance < range) {
+      door.classList.add('nearby');
     }
   });
   
@@ -402,6 +472,163 @@ function findNearbyPlayer() {
 }
 
 // ===============================================================
+// GRID-BASED MAP SYSTEM - EASY TO EDIT!
+// ===============================================================
+
+// TILE DEFINITIONS: number -> emoji + properties
+const TILES = {
+  0: { emoji: '⬛', label: 'Wall', walk: false },
+  1: { emoji: '⬜', label: 'Floor', walk: true },
+  2: { emoji: '🚪', label: 'Door', walk: true },
+  3: { emoji: '🔒', label: 'Locked Door', walk: false },
+  4: { emoji: '🔑', label: 'Key', walk: true },
+  5: { emoji: '🪑', label: 'Furniture', walk: false },
+  6: { emoji: '🔪', label: 'Weapon', walk: true }
+};
+
+// GAME MAP (edit this grid!)
+// Row by row, each number represents a tile type
+// Grid: 40 tiles wide x 28 tiles tall (2400px x 1680px)
+// Rooms: Kitchen (cols 2-11, rows 2-11), Living (cols 14-25, rows 2-11), 
+//        Bedroom (cols 2-11, rows 17-26), Bathroom (cols 14-25, rows 17-26)
+const GAME_MAP = [
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 0 - all walls
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 1 - all walls
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 2 - Kitchen + Living floor with door
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 3
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 4
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 5
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 6
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 7 - SPAWN ROW (kitchen/living)
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 8
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 9
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 10
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 11
+  [0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 12 - door bridge row
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 13 - gap row
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 14 - gap row
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 15 - gap row
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 16 - gap row
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 17 - Bedroom + Bathroom floor start with door
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 18
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 19
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 20
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 21
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 22
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 23
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 24
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 25
+  [0,0,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], // 26
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]  // 27 - all walls
+];
+
+const GRID_SIZE = 60; // pixels per tile
+const MAP_WIDTH = GAME_MAP[0].length;
+const MAP_HEIGHT = GAME_MAP.length;
+
+// ===============================================================
+// COLLISION DETECTION - GRID BASED
+// ===============================================================
+function canPassThroughDoors(newX, newY) {
+  const gridX = Math.floor(newX / GRID_SIZE);
+  const gridY = Math.floor(newY / GRID_SIZE);
+  
+  // Out of bounds
+  if (gridX < 0 || gridX >= MAP_WIDTH || gridY < 0 || gridY >= MAP_HEIGHT) {
+    return false;
+  }
+  
+  const tileType = GAME_MAP[gridY][gridX];
+  const tile = TILES[tileType];
+  
+  // Tile doesn't exist or not walkable
+  if (!tile || !tile.walk) {
+    return false;
+  }
+  
+  return true; // Tile is walkable
+}
+
+// ===============================================================
+// DOOR SYSTEM
+// ===============================================================
+function handleDoorInteraction(roomId, doorElement) {
+  const requiredKey = roomId; // e.g., 'kitchen', 'bedroom'
+  const hasKey = state.collectedKeys.includes(requiredKey);
+  
+  if (state.unlockedDoors.includes(`door-${roomId}`)) {
+    // Already unlocked - door is passable
+    doorElement.classList.remove('locked');
+    doorElement.classList.add('unlocked');
+    alert(`🔓 ${roomId.toUpperCase()} is now unlocked!`);
+  } else if (hasKey) {
+    // Has key - unlock it
+    state.unlockedDoors.push(`door-${roomId}`);
+    doorElement.classList.remove('locked');
+    doorElement.classList.add('unlocked');
+    alert(`🔓 You unlocked the ${roomId}!`);
+    
+    // Broadcast unlock to other players
+    sendWS({
+      type: 'doorUnlocked',
+      doorId: `door-${roomId}`,
+      roomId: roomId
+    });
+  } else {
+    // No key
+    alert(`🔒 This door is locked! Find the ${roomId} key!`);
+  }
+}
+
+// ===============================================================
+// UPDATE KEYS DISPLAY
+// ===============================================================
+// ===============================================================
+// NOTE INTERACTION SYSTEM
+// ===============================================================
+function handleNoteInteraction(noteElement) {
+  const noteId = noteElement.dataset.noteId;
+  const existingNote = JSON.parse(localStorage.getItem(`note-${noteId}`) || '{}');
+  
+  const noteContent = prompt('📝 Note (read or write):', existingNote.content || '');
+  if (noteContent !== null) {
+    const noteData = {
+      content: noteContent,
+      author: state.playerName,
+      timestamp: new Date().toLocaleTimeString()
+    };
+    
+    localStorage.setItem(`note-${noteId}`, JSON.stringify(noteData));
+    
+    // Update note display
+    noteElement.dataset.noteContent = JSON.stringify(noteData);
+    noteElement.title = `📝 ${noteData.author}: ${noteData.content}`;
+    
+    // Broadcast note update
+    sendWS({
+      type: 'noteFound',
+      noteId: noteId,
+      x: parseInt(noteElement.style.left),
+      y: parseInt(noteElement.style.top)
+    });
+    
+    alert('📝 Note saved!');
+  }
+}
+
+function updateKeysDisplay() {
+  if (state.collectedKeys.length === 0) {
+    elements.keysDisplay.textContent = '📭'; // Empty mailbox
+  } else {
+    const keyMap = { 'kitchen': '🔑', 'bedroom': '🔑' };
+    const keyDisplay = state.collectedKeys
+      .map(key => `${keyMap[key]}${key.charAt(0).toUpperCase()}`)
+      .join(' ');
+    elements.keysDisplay.textContent = keyDisplay;
+  }
+}
+
+// ===============================================================
 // OBJECT INTERACTIONS
 // ===============================================================
 function handleUseObject() {
@@ -411,6 +638,8 @@ function handleUseObject() {
   const interaction = obj.dataset.interaction;
   const item = obj.dataset.item;
   const isWeapon = obj.classList.contains('weapon');
+  const isKey = obj.classList.contains('key-item');
+  const keyFor = obj.dataset.keyFor;
   
   switch (interaction) {
     case 'pickup':
@@ -433,6 +662,24 @@ function handleUseObject() {
         });
       }
       break;
+    case 'key':
+      if (isKey) {
+        // PICKUP KEY
+        obj.classList.add('picked-up');
+        state.collectedKeys.push(keyFor);
+        updateKeysDisplay(); // UPDATE HUD
+        alert(`🔑 You found the ${keyFor} key!`);
+        showChatBubble(state.playerId, '', '🔑');
+        
+        sendWS({
+          type: 'pickupKey',
+          playerId: state.playerId,
+          keyFor: keyFor,
+          x: parseInt(obj.style.left),
+          y: parseInt(obj.style.top)
+        });
+      }
+      break;
     case 'sit':
       showChatBubble(state.playerId, 'Chilling...', '😌');
       break;
@@ -446,7 +693,39 @@ function handleUseObject() {
       showChatBubble(state.playerId, 'Eating', '🍽️');
       break;
     case 'hide':
-      showChatBubble(state.playerId, 'Hiding!', '🫣');
+      // TOGGLE HIDING IN CLOSET
+      state.isHiding = !state.isHiding;
+      if (state.isHiding) {
+        showChatBubble(state.playerId, 'Hiding!', '🫣');
+        // Hide avatar when hiding
+        let avatar = document.querySelector(`[data-player-id="${state.playerId}"]`);
+        if (avatar) avatar.style.opacity = '0.1';
+        alert('🫣 You are now hiding in the closet! Press E again to get out.');
+        
+        // Broadcast hide status to others
+        sendWS({
+          type: 'playerHiding',
+          id: state.playerId,
+          isHiding: true
+        });
+      } else {
+        showChatBubble(state.playerId, 'Got out!', '👋');
+        // Show avatar when unhiding
+        let avatar = document.querySelector(`[data-player-id="${state.playerId}"]`);
+        if (avatar) avatar.style.opacity = '1';
+        alert('👋 You got out of the closet!');
+        
+        // Broadcast unhide status to others
+        sendWS({
+          type: 'playerHiding',
+          id: state.playerId,
+          isHiding: false
+        });
+      }
+      break;
+    case 'note':
+      // READ OR WRITE NOTE
+      handleNoteInteraction(obj);
       break;
   }
 }
@@ -462,10 +741,67 @@ function hideWeapon(weaponName, x, y) {
   });
 }
 
+// KEY SYNC - Hide for everyone
+function hideKey(keyFor, x, y) {
+  document.querySelectorAll('.furniture').forEach(f => {
+    if (f.dataset.keyFor === keyFor && 
+        parseInt(f.style.left) === x && 
+        parseInt(f.style.top) === y) {
+      f.classList.add('picked-up');
+    }
+  });
+}
+
+// DOOR SYNC - Unlock for everyone
+function unlockDoorGlobally(roomId, doorId) {
+  const door = document.querySelector(`[data-door-id="${doorId}"]`);
+  if (door) {
+    door.classList.remove('locked');
+    door.classList.add('unlocked');
+    if (!state.unlockedDoors.includes(doorId)) {
+      state.unlockedDoors.push(doorId);
+    }
+  }
+}
+
+// ===============================================================
+// HIDE/UNHIDE SYSTEM
+// ===============================================================
+function handlePlayerHideStatus(playerId, isHiding) {
+  const avatar = document.querySelector(`[data-player-id="${playerId}"]`);
+  if (!avatar) return;
+  
+  if (isHiding) {
+    avatar.style.opacity = '0.1';
+    avatar.classList.add('hiding');
+  } else {
+    avatar.style.opacity = '1';
+    avatar.classList.remove('hiding');
+  }
+}
+
+// ===============================================================
+// NOTE SYSTEM
+// ===============================================================
+function hideNote(x, y) {
+  document.querySelectorAll('.furniture').forEach(f => {
+    if (f.dataset.interaction === 'note' && 
+        parseInt(f.style.left) === x && 
+        parseInt(f.style.top) === y) {
+      f.classList.add('picked-up');
+    }
+  });
+}
+
 // ===============================================================
 // KILL SYSTEM
 // ===============================================================
 function handleKill() {
+  if (state.isHiding) {
+    alert('🫣 You cannot kill while hiding!');
+    return;
+  }
+  
   const nearPlayer = findNearbyPlayer();
   if (!nearPlayer || !state.hasWeapon) return;
   
@@ -530,7 +866,7 @@ function renderBlood(x, y, id) {
 // ===============================================================
 function setupGameListeners() {
   elements.accuseBtn.addEventListener('click', () => {
-    if (!state.isAlive || !state.gameStarted) return;
+    if (!state.isAlive) return;
     showAccuseModal();
   });
   
@@ -658,63 +994,135 @@ function showGameOver(data) {
 }
 
 // ===============================================================
-// CREATE REALISTIC HOUSE
+// CREATE REALISTIC HOUSE WITH DOORS AND KEYS
+// ===============================================================
+// ===============================================================
+// CREATE GRID MAP RENDERER
+// ===============================================================
+function createGridMap() {
+  for (let row = 0; row < MAP_HEIGHT; row++) {
+    for (let col = 0; col < MAP_WIDTH; col++) {
+      const tileType = GAME_MAP[row][col];
+      const tile = TILES[tileType];
+      
+      const div = document.createElement('div');
+      div.className = 'grid-tile';
+      if (!tile.walk) div.classList.add('blocked');
+      div.style.left = `${col * GRID_SIZE}px`;
+      div.style.top = `${row * GRID_SIZE}px`;
+      div.style.width = `${GRID_SIZE}px`;
+      div.style.height = `${GRID_SIZE}px`;
+      div.innerHTML = tile.emoji;
+      div.title = `${tile.label} (walkable: ${tile.walk})`;
+      
+      elements.houseGrid.appendChild(div);
+    }
+  }
+}
+
+// ===============================================================
+// OLD ROOM CREATION - RESTORED FOR VISUALS
 // ===============================================================
 function createRealisticHouse() {
   const rooms = [
-    { id: 'kitchen', label: '🍳 Kitchen', x: 150, y: 150, width: 600, height: 500, className: 'kitchen' },
-    { id: 'living', label: '🛋️ Living Room', x: 850, y: 150, width: 700, height: 550, className: 'living' },
-    { id: 'hallway', label: '🚪 Hallway', x: 650, y: 750, width: 600, height: 250, className: 'hallway' },
-    { id: 'bedroom', label: '🛏 Bedroom', x: 150, y: 1050, width: 600, height: 600, className: 'bedroom' },
-    { id: 'bathroom', label: '🚿 Bathroom', x: 850, y: 1050, width: 700, height: 600, className: 'bathroom' }
+    { id: 'kitchen', label: '🍳 Kitchen', x: 120, y: 120, width: 540, height: 540, className: 'kitchen', doorX: 120, doorY: 300, doorDir: 'left', locked: true },
+    { id: 'living', label: '🛋️ Living Room', x: 840, y: 120, width: 720, height: 600, className: 'living', doorX: 840, doorY: 300, doorDir: 'left', locked: false },
+    { id: 'bedroom', label: '🛏 Bedroom', x: 120, y: 1020, width: 540, height: 600, className: 'bedroom', doorX: 120, doorY: 1260, doorDir: 'left', locked: true },
+    { id: 'bathroom', label: '🚿 Bathroom', x: 840, y: 1020, width: 720, height: 600, className: 'bathroom', doorX: 840, doorY: 1020, doorDir: 'top', locked: false }
   ];
   
   rooms.forEach(room => {
     const div = document.createElement('div');
     div.className = `room ${room.className}`;
     div.id = `room-${room.id}`;
+    div.dataset.roomId = room.id;
     div.style.left = `${room.x}px`;
     div.style.top = `${room.y}px`;
     div.style.width = `${room.width}px`;
     div.style.height = `${room.height}px`;
     div.innerHTML = `<div class="room-label">${room.label}</div>`;
     elements.houseGrid.appendChild(div);
+    
+    if (room.doorX !== undefined) {
+      const door = document.createElement('div');
+      const lockStatus = room.locked ? 'locked' : 'unlocked';
+      door.className = `door ${lockStatus}`;
+      door.dataset.roomId = room.id;
+      door.dataset.doorId = `door-${room.id}`;
+      door.style.left = `${room.doorX}px`;
+      door.style.top = `${room.doorY}px`;
+      
+      const doorLabel = '🚪';
+      const lockLabel = room.locked ? 'Locked' : 'Unlocked';
+      door.innerHTML = `
+        <div class="door-icon">${doorLabel}</div>
+        <div class="door-label">${lockLabel}</div>
+      `;
+      
+      door.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleDoorInteraction(room.id, door);
+      });
+      
+      elements.houseGrid.appendChild(door);
+      
+      if (!room.locked) {
+        state.unlockedDoors.push(`door-${room.id}`);
+      }
+    }
   });
   
   const furniture = [
-    // Kitchen
-    { emoji: '🔪', label: 'Knife', x: 300, y: 250, weapon: true, interaction: 'pickup' },
-    { emoji: '🧊', label: 'Fridge', x: 500, y: 300, interaction: 'open' },
-    { emoji: '🍳', label: 'Stove', x: 350, y: 280, interaction: 'use' },
-    { emoji: '🪑', label: 'Chair', x: 400, y: 450, interaction: 'sit' },
-    { emoji: '🍽️', label: 'Table', x: 450, y: 420, interaction: 'eat' },
-    
-    // Living Room
-    { emoji: '🛋️', label: 'Sofa', x: 1050, y: 380, interaction: 'sit' },
-    { emoji: '📺', label: 'TV', x: 1050, y: 230, interaction: 'watch' },
-    { emoji: '☕', label: 'Coffee Table', x: 1050, y: 480, weapon: true, interaction: 'pickup' },
-    { emoji: '🌷', label: 'Vase', x: 1300, y: 320, weapon: true, interaction: 'pickup' },
-    
-    // Bedroom
-    { emoji: '🛏', label: 'Bed', x: 350, y: 1250, interaction: 'sleep' },
-    { emoji: '🛌', label: 'Pillow', x: 320, y: 1230, weapon: true, interaction: 'pickup' },
-    { emoji: '🗄', label: 'Closet', x: 550, y: 1350, interaction: 'hide' },
-    { emoji: '🕯', label: 'Nightstand', x: 450, y: 1250, interaction: 'inspect' },
-    
-    // Bathroom
-    { emoji: '🪥', label: 'Sink', x: 1000, y: 1250, interaction: 'use' },
-    { emoji: '🪞', label: 'Mirror', x: 1000, y: 1170, interaction: 'inspect' },
-    { emoji: '🚽', label: 'Toilet', x: 1250, y: 1400, interaction: 'use' },
-    
-    // Hallway
-    { emoji: '🌷', label: 'Vase', x: 850, y: 850, weapon: true, interaction: 'pickup' }
+    { emoji: '🔪', label: 'Knife', x: 270, y: 220, weapon: true, interaction: 'pickup', room: 'kitchen' },
+    { emoji: '🧊', label: 'Fridge', x: 470, y: 270, interaction: 'open', room: 'kitchen' },
+    { emoji: '🍳', label: 'Stove', x: 320, y: 250, interaction: 'use', room: 'kitchen' },
+    { emoji: '🪑', label: 'Chair', x: 370, y: 420, interaction: 'sit', room: 'kitchen' },
+    { emoji: '🍽️', label: 'Table', x: 420, y: 390, interaction: 'eat', room: 'kitchen' },
+    { emoji: '🥘', label: 'Pot', x: 250, y: 320, weapon: true, interaction: 'pickup', room: 'kitchen' },
+    { emoji: '🥄', label: 'Spoon', x: 490, y: 250, weapon: true, interaction: 'pickup', room: 'kitchen' },
+    { emoji: '📦', label: 'Cabinets', x: 420, y: 170, interaction: 'use', room: 'kitchen' },
+    { emoji: '🛋️', label: 'Sofa', x: 1040, y: 350, interaction: 'sit', room: 'living' },
+    { emoji: '📺', label: 'TV', x: 1040, y: 200, interaction: 'watch', room: 'living' },
+    { emoji: '☕', label: 'Lamp', x: 1290, y: 290, weapon: true, interaction: 'pickup', room: 'living' },
+    { emoji: '🌷', label: 'Vase', x: 1290, y: 450, weapon: true, interaction: 'pickup', room: 'living' },
+    { emoji: '🔑', label: 'Bedroom Key', x: 940, y: 370, interaction: 'key', room: 'living', keyFor: 'bedroom' },
+    { emoji: '📚', label: 'Bookshelf', x: 890, y: 170, interaction: 'inspect', room: 'living' },
+    { emoji: '🎨', label: 'Painting', x: 1190, y: 120, interaction: 'inspect', room: 'living' },
+    { emoji: '🪴', label: 'Plant', x: 840, y: 470, interaction: 'inspect', room: 'living' },
+    { emoji: '📝', label: 'Note 1', x: 990, y: 470, interaction: 'note', room: 'living', noteId: 'note1' },
+    { emoji: '📄', label: 'Note 2', x: 1090, y: 490, interaction: 'note', room: 'living', noteId: 'note2' },
+    { emoji: '🎮', label: 'Gaming Console', x: 940, y: 220, interaction: 'use', room: 'living' },
+    { emoji: '🛏', label: 'Bed', x: 320, y: 1220, interaction: 'sleep', room: 'bedroom' },
+    { emoji: '🛌', label: 'Pillow', x: 290, y: 1200, weapon: true, interaction: 'pickup', room: 'bedroom' },
+    { emoji: '🗄', label: 'Closet', x: 520, y: 1320, interaction: 'hide', room: 'bedroom' },
+    { emoji: '🕯', label: 'Nightstand', x: 420, y: 1220, interaction: 'inspect', room: 'bedroom' },
+    { emoji: '🧸', label: 'Teddy Bear', x: 350, y: 1170, weapon: true, interaction: 'pickup', room: 'bedroom' },
+    { emoji: '💼', label: 'Suitcase', x: 470, y: 1470, interaction: 'inspect', room: 'bedroom' },
+    { emoji: '🖼️', label: 'Picture Frame', x: 170, y: 1120, interaction: 'inspect', room: 'bedroom' },
+    { emoji: '📖', label: 'Book', x: 520, y: 1170, interaction: 'inspect', room: 'bedroom' },
+    { emoji: '🪥', label: 'Sink', x: 990, y: 1220, interaction: 'use', room: 'bathroom' },
+    { emoji: '🪞', label: 'Mirror', x: 990, y: 1140, interaction: 'inspect', room: 'bathroom' },
+    { emoji: '🚽', label: 'Toilet', x: 1240, y: 1370, interaction: 'use', room: 'bathroom' },
+    { emoji: '🔑', label: 'Kitchen Key', x: 1090, y: 1270, interaction: 'key', room: 'bathroom', keyFor: 'kitchen' },
+    { emoji: '🛁', label: 'Bathtub', x: 1140, y: 1170, interaction: 'use', room: 'bathroom' },
+    { emoji: '🧴', label: 'Soap', x: 1010, y: 1260, weapon: true, interaction: 'pickup', room: 'bathroom' },
+    { emoji: '🧻', label: 'Toilet Paper', x: 1270, y: 1330, weapon: true, interaction: 'pickup', room: 'bathroom' },
+    { emoji: '🧼', label: 'Brush', x: 1170, y: 1070, weapon: true, interaction: 'pickup', room: 'bathroom' }
   ];
   
   furniture.forEach(item => {
     const obj = document.createElement('div');
-    obj.className = `furniture ${item.weapon ? 'weapon' : ''}`;
+    let classNames = `furniture ${item.weapon ? 'weapon' : ''}`;
+    
+    if (item.interaction === 'key') classNames += ' key-item';
+    if (item.interaction === 'note') classNames += ' note-item';
+    
+    obj.className = classNames;
     obj.dataset.item = item.label;
     obj.dataset.interaction = item.interaction;
+    obj.dataset.room = item.room;
+    obj.dataset.keyFor = item.keyFor || '';
+    obj.dataset.noteId = item.noteId || '';
     obj.style.left = `${item.x}px`;
     obj.style.top = `${item.y}px`;
     obj.innerHTML = `
